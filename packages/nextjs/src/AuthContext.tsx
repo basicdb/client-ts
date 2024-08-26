@@ -1,8 +1,8 @@
+//@ts-nocheck
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { jwtDecode} from 'jwt-decode'
 
 import { get, add, update, deleteRecord } from './db'
-
 
 type User = { 
     name?: string,
@@ -14,7 +14,7 @@ type User = {
     fullName?: string
 }
 
-export const AuthContext = createContext<{ 
+export const BasicContext = createContext<{ 
     unicorn: string, 
     isLoaded: boolean,
     isSignedIn: boolean,
@@ -43,7 +43,7 @@ type Token = {
     refresh: string,
 } 
 
-export function AuthProvider({children, project_id}: {children: React.ReactNode, project_id: string}) {
+export function BasicProvider({children, project_id}: {children: React.ReactNode, project_id: string}) {
     const [isLoaded, setIsLoaded] = useState(false)
     const [isSignedIn, setIsSignedIn] = useState(false) 
     const [token, setToken] = useState<Token | null>(null)
@@ -246,7 +246,7 @@ export function AuthProvider({children, project_id}: {children: React.ReactNode,
     }
 
     return (
-    <AuthContext.Provider value={{
+    <BasicContext.Provider value={{
         unicorn: "🦄",
         isLoaded,
         isSignedIn,
@@ -259,10 +259,10 @@ export function AuthProvider({children, project_id}: {children: React.ReactNode,
         
     }}>
     {children}
-    </AuthContext.Provider>
+    </BasicContext.Provider>
     )
   }
 
-export function useAuth() {
-    return useContext(AuthContext);
+export function useBasic() {
+    return useContext(BasicContext);
   }

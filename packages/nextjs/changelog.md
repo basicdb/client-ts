@@ -5,12 +5,6 @@
 ### Minor Changes
 
 - testing
-
-## 1.1.0
-
-### Minor Changes
-
-- 9da7748: hello :)
 - fixes auth token on refresh
 
 # 1.3.3
