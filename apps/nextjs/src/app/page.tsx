@@ -5,7 +5,6 @@ import { useBasic } from "@basictech/nextjs"
 
 import { ClientComponent } from "./components"
 
-
 async function test() {
   console.log("Running on server", process.env.TEST_VAR)
   
@@ -15,8 +14,7 @@ async function test() {
 
 
 export default function Home() {
-  // const { user, isSignedIn, signin } = useBasic()
-
+  
 
 
   const data = test()
@@ -46,7 +44,8 @@ export default function Home() {
           <h2> server component </h2>
           <p> {data} </p>
         </div>
-        
+
+       
       </div>
     </main>
   );

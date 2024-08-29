@@ -1,6 +1,6 @@
 "use client"
 
-import { useBasic } from "@basictech/nextjs"
+import { useBasic, sync } from "@basictech/nextjs"
 
 
 
@@ -21,6 +21,14 @@ export function ClientComponent() {
             <button onClick={() => {
                 signin()
             }}> Sign in </button>
+
+
+
+            <div>
+                <button onClick={() => {
+                    sync()
+                }}> Sync </button>
+            </div>
         </div>
     )
 }
