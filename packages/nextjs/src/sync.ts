@@ -1,10 +1,11 @@
+"use client"
 import { createRxDatabase } from 'rxdb';
 import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
 
 import { v7 as uuidv7 } from 'uuid';
 
 import { Dexie, PromiseExtended } from 'dexie';
-import 'dexie-observable'; 
+import 'dexie-observable';
 import 'dexie-syncable';
 
 import { syncProtocol } from './syncProtocol'
@@ -12,88 +13,128 @@ import { syncProtocol } from './syncProtocol'
 syncProtocol()
 
 
-const basic_schema = { 
-  project_id: '123',
-  namespace: 'todos',
-  version: 0, 
-  tables: { 
-    todos: { 
-      name: 'todos',
-      type: 'collection',
-      fields: { 
-        id: { 
-          type: 'string',
-          primary: true,
-        },
-        title: { 
-          type: 'string',
-          indexed: true,
-        },
-        completed: { 
-          type: 'boolean',
-          indexed: true,
-        }
-      }
-    }, 
-  }
+const DexieSyncStatus = {
+  "-1": "ERROR",
+  "0": "OFFLINE",
+  "1": "CONNECTING",
+  "2": "ONLINE",
+  "3": "SYNCING",
+  "4": "ERROR_WILL_RETRY"
 }
 
 
-export class BasicSync extends Dexie { 
+export class BasicSync extends Dexie {
   basic_schema: any
 
-  constructor(name: string, options: any) { 
+  constructor(name: string, options: any) {
     super(name, options);
 
     // --- INIT SCHEMA --- // 
 
     //todo: handle versions?
-    // console.log(this._convertSchemaToDxSchema(this.basic_schema))
+
     this.basic_schema = options.schema
     this.version(1).stores(this._convertSchemaToDxSchema(this.basic_schema))
+
+    this.version(2).stores({})
+    // this.verssion
 
 
     // create an alias for toArray
     // @ts-ignore
     this.Collection.prototype.get = this.Collection.prototype.toArray
 
-    
+
     // --- SYNC --- // 
 
-    this.syncable.on("statusChanged", (status, url) => { 
-      console.log("statusChanged", status, url)
-    })
-
-    console.log("connecting to", "ws://localhost:3003/ws")
-    this.syncable.connect("websocket", "ws://localhost:3003/ws");
+    // this.syncable.on("statusChanged", (status, url) => { 
+    //   console.log("statusChanged", status, url)
+    // })
 
   }
 
-  _convertSchemaToDxSchema(schema: any) { 
-    const stores = Object.entries(schema.tables).map(([key, table]: any) => { 
+  async connect({ access_token }: { access_token: string }) {
+    const WS_URL = "ws://localhost:3003/ws"
+
+    
+    // Update sync nodes
+    await this.updateSyncNodes();
+    
+    // Proceed with the WebSocket connection
+    
+    console.log('Starting connection...')
+    return this.syncable.connect("websocket", WS_URL, { authToken: access_token });
+  }
+
+  private async updateSyncNodes() {
+    try {
+      const syncNodes = await this.table('_syncNodes').toArray();
+      const localSyncNodes = syncNodes.filter(node => node.type === 'local');
+      console.log('Local sync nodes:', localSyncNodes);
+
+      if (localSyncNodes.length > 1) {
+
+        
+        const largestNodeId = Math.max(...localSyncNodes.map(node => node.id));
+        // Check if the largest node is already the master
+        const largestNode = localSyncNodes.find(node => node.id === largestNodeId);
+        if (largestNode && largestNode.isMaster === 1) {
+          console.log('Largest node is already the master. No changes needed.');
+          return; // Exit the function early as no changes are needed
+        }
+
+
+        console.log('Largest node id:', largestNodeId);
+        console.error('HEISENBUG: More than one local sync node found.')
+
+        for (const node of localSyncNodes) {
+          console.log(`Local sync node keys:`, node.id, node.isMaster);
+          await this.table('_syncNodes').update(node.id, { isMaster: node.id === largestNodeId ? 1 : 0 });
+
+          console.log(`HEISENBUG: Setting ${node.id} to ${node.id === largestNodeId ? 'master' : '0'}`);
+        }
+
+        // Add a 1 second delay before returning // i dont think this helps?
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+      }
+
+      console.log('Sync nodes updated');
+    } catch (error) {
+      console.error('Error updating _syncNodes table:', error);
+    }
+  }
+
+  handleStatusChange(fn: any) {
+    this.syncable.on("statusChanged", fn)
+  }
+
+
+  _convertSchemaToDxSchema(schema: any) {
+    const stores = Object.entries(schema.tables).map(([key, table]: any) => {
 
       const indexedFields = Object.entries(table.fields).filter(([key, field]: any) => field.indexed).map(([key, field]: any) => `,${key}`).join('')
       return {
         [key]: 'id' + indexedFields
       }
     })
-  
+
     return Object.assign({}, ...stores)
   }
 
-  debugeroo() { 
+  debugeroo() {
     // console.log("debugeroo", this.syncable)
 
     // this.syncable.list().then(x => console.log(x))
-    
+
     // this.syncable
     return this.syncable
   }
 
 
-  collection(name: string) { 
+  collection(name: string) {
     // TODO: check against schema
-  
+
     return {
 
       /**
@@ -103,44 +144,44 @@ export class BasicSync extends Dexie {
       ref: this.table(name),
 
       // --- WRITE ---- // 
-      add: (data: any) => { 
+      add: (data: any) => {
         console.log("Adding data to", name, data)
-        return this.table(name).add({ 
-          id: uuidv7(), 
-          ...data
-        })
-      },
-
-      put: (data: any) => { 
-        return this.table(name).put({ 
+        return this.table(name).add({
           id: uuidv7(),
           ...data
         })
       },
 
-      update: (id: string, data: any) => { 
+      put: (data: any) => {
+        return this.table(name).put({
+          id: uuidv7(),
+          ...data
+        })
+      },
+
+      update: (id: string, data: any) => {
         return this.table(name).update(id, data)
       },
 
-      delete: (id: string) => { 
+      delete: (id: string) => {
         return this.table(name).delete(id)
       },
 
 
       // --- READ ---- // 
 
-      get: (id: string) => { 
+      get: (id: string) => {
         return this.table(name).get(id)
       },
 
-      getAll: () => { 
+      getAll: () => {
         return this.table(name).toArray()
       },
 
       // --- QUERY ---- // 
       // TODO: lots to do here. simplifing creating querie,  filtering/ordering/limit, and execute
 
-      query : () => this.table(name),
+      query: () => this.table(name),
 
       filter: (fn: any) => this.table(name).filter(fn).toArray(),
 
@@ -148,46 +189,9 @@ export class BasicSync extends Dexie {
   }
 }
 
-
-
-export async function synce() {
-  console.log("starting sync");
-  
-  
-  const db = new BasicSync('basicdb', { schema: basic_schema });
-  
-  console.log(db.debugeroo())
-
-  const todos = db.collection('todos')
-  
-    // await todos.update('0191b9c1-6790-7334-971c-ceba3d0d573a', { title: "alskjdl"})
-    // await todos.delete("0191b9c1-678f-7334-971c-c5248d89d6a3").then(() => { 
-    //   console.log("deleted")
-    // })
-
-  const all = await todos.getAll()
-
-
-  // const some = await todos.filter( x => !x.completed && x.title == 'Todo 3')
-  // const some = await todos.query().filter( x => x.completed)
-
-
-  // query methods: 
-  // .filter()
-  // 
-
-
-  console.log(all)
-  // console.log(some)
-
-  // console.log(db.collection('todos').ref)
-
-
-}
-
 async function createRxDB() {
 
-  const mySchema = { 
+  const mySchema = {
     title: 'todos',
     version: 0,
     primaryKey: 'id',
@@ -206,7 +210,7 @@ async function createRxDB() {
     }
   }
 
-  
+
 
   const basicdb = await createRxDatabase({
     name: 'basicdb',                   // <- name

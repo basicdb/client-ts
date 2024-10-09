@@ -1,3 +1,4 @@
+"use client"
 import { Dexie } from "dexie";
 
 export const syncProtocol = function () {
@@ -26,8 +27,11 @@ export const syncProtocol = function () {
       // Connect the WebSocket to given url:
       var ws = new WebSocket(url);
 
+      // console.log("ws OPTIONS", options);
+
       // sendChanges() method:
       function sendChanges(changes, baseRevision, partial, onChangesAccepted) {
+        console.log("sendChanges", changes.length, baseRevision);
         ++requestId;
         acceptCallbacks[requestId.toString()] = onChangesAccepted;
 
@@ -54,34 +58,28 @@ export const syncProtocol = function () {
         );
       }
 
+
+
       // When WebSocket opens, send our changes to the server.
       ws.onopen = function (event) {
         // Initiate this socket connection by sending our clientIdentity. If we dont have a clientIdentity yet,
         // server will call back with a new client identity that we should use in future WebSocket connections.
-        console.log("Opening socket - sending clientIdentity");
-
+        
+        console.log("Opening socket - sending clientIdentity", context.clientIdentity);
         ws.send(
           JSON.stringify({
             type: "clientIdentity",
             clientIdentity: context.clientIdentity || null,
+            authToken: options.authToken
           }),
         );
 
-        // Send our changes:
-        sendChanges(changes, baseRevision, partial, onChangesAccepted);
-
-        // Subscribe to server changes:
-        ws.send(
-          JSON.stringify({
-            type: "subscribe",
-            syncedRevision: syncedRevision,
-          }),
-        );
       };
 
       // If network down or other error, tell the framework to reconnect again in some time:
       ws.onerror = function (event) {
         ws.close();
+        console.log("ws.onerror", event);
         onError(event.message, RECONNECT_DELAY);
       };
 
@@ -111,8 +109,22 @@ export const syncProtocol = function () {
           //     partial: true if server has additionalChanges to send. False if these changes were the last known. (applicable if type="changes")
           // }
           var requestFromServer = JSON.parse(event.data);
-          console.log("requestFromServer", requestFromServer, acceptCallback);
-          if (requestFromServer.type == "changes") {
+          console.log("requestFromServer", requestFromServer, { acceptCallback, isFirstRound });
+
+          if (requestFromServer.type == "clientIdentity") {
+            context.clientIdentity = requestFromServer.clientIdentity;
+            context.save();
+
+            sendChanges(changes, baseRevision, partial, onChangesAccepted);
+
+            ws.send(
+              JSON.stringify({
+                type: "subscribe",
+                syncedRevision: syncedRevision,
+              }),
+            );
+          } else if (requestFromServer.type == "error") {
+          } else if (requestFromServer.type == "changes") {
             applyRemoteChanges(
               requestFromServer.changes,
               requestFromServer.currentRevision,
@@ -147,9 +159,6 @@ export const syncProtocol = function () {
             var acceptCallback = acceptCallbacks[requestId.toString()];
             acceptCallback(); // Tell framework that server has acknowledged the changes sent.
             delete acceptCallbacks[requestId.toString()];
-          } else if (requestFromServer.type == "clientIdentity") {
-            context.clientIdentity = requestFromServer.clientIdentity;
-            context.save();
           } else if (requestFromServer.type == "error") {
             var requestId = requestFromServer.requestId;
             ws.close();

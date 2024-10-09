@@ -3,114 +3,67 @@
 import { useEffect } from "react"
 import { useBasic, BasicSync, useQuery } from "@basictech/nextjs"
 
-const basic_schema = {
-    project_id: '123',
-    namespace: 'todos',
-    version: 0,
-    tables: {
-        todos: {
-            name: 'todos',
-            type: 'collection',
-            fields: {
-                id: {
-                    type: 'string',
-                    primary: true,
-                },
-                title: {
-                    type: 'string',
-                    indexed: true,
-                },
-                completed: {
-                    type: 'boolean',
-                    indexed: true,
-                }
-            }
-        },
-    }
-}
 
-function getSyncStatus(statusCode: number): string {
-    switch (statusCode) {
-        case -1:
-            return "ERROR";
-        case 0:
-            return "OFFLINE";
-        case 1:
-            return "CONNECTING";
-        case 2:
-            return "ONLINE";
-        case 3:
-            return "SYNCING";
-        case 4:
-            return "ERROR_WILL_RETRY";
-        default:
-            return "UNKNOWN";
-    }
-}
 
-const db = new BasicSync('basicdb', { schema: basic_schema });
+
+// const db = new BasicSync('basicdb', { schema: basic_schema });
 
 export function ClientComponent() {
-    const { user, isSignedIn, signin } = useBasic()
+    const { user, isSignedIn, signout, signin, db, dbStatus } = useBasic()
+    
     const todos = useQuery(() => db.collection('todos').ref.toArray())
 
-    const todosCount = useQuery(() => db.collection('todos').ref.count())
-
-
-    // db.collection('todos').add({ title: 'test', completed: false })
-    
-    // db.collection('todos').update('id', { completed: true })
-
- 
-
-
-    // useEffect(() => {
-    //     db.collection('todos').getAll().then(x => {
-    //         console.log(x)
-    //     })
-    // }, [])
+    // const todosCount = useQuery(() => db.collection('todos').ref.count())
 
     const testWebSocket = async () => {
-        console.log(todosCount)
+        // console.log(db)
+
+        // console.log(todos)
+
+        const tok = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRJZCI6IjMwZGNjNGNkLTUwNDAtNGQxMi05YmIwLTRiMTNiMzJlNGI5YyIsInVzZXJJZCI6ImJmOTE4ZjdiLWZlM2YtNGZkOC05ZTE0LTQ1NGZjZGNkMWUyMCIsInNjb3BlIjoib3BlbmlkIiwiaWF0IjoxNzI3ODE5MDAwLCJleHAiOjE3Mjc4MjI2MDB9.jjFmr7jAjLKioxidKvP7NzSaaqQ27vDq9qxmiM2sIR0"
+
+        await db.connect({ access_token: tok }).then(() => {
+            console.log("connected")
+        })
     }
 
     const debugeroo = async () => {
         console.log("debugeroo")
 
-        const status = await db.debugeroo().getStatus("ws://localhost:3003/ws")
-        console.log("sync status", getSyncStatus(status))
+        // console.log(db.)
 
+        // const status = await db.debugeroo().getStatus("ws://localhost:3003/ws")
+        // console.log("sync status", getSyncStatus(status))
 
-        const all = await db.debugeroo().list()
-        console.log("all", all)
-
-        // db.debugeroo().connect('websocket', 'ws://localhost:3003/ws', {}).then(x => console.log(x))
-
-
-        // const unsynced = await db.debugeroo().unsyncedChanges('https://localhost:3003/ws')
-
-        // console.log("unsynced", unsynced)
+        // const all = await db.debugeroo().list()
+        // console.log("all", all)
     }
 
     return (
         <div>
+            
+            { isSignedIn && <span>hello {user?.email}</span>}
+
+            <br />
+
             <button onClick={() => {
-                console.log("clicked")
                 console.log("user", user, isSignedIn)
             }}> auth </button>
 
-            <button onClick={() => {
+            {isSignedIn ? <button onClick={() => {
+                signout()
+            }}> Sign out </button> : <button onClick={() => {
                 signin()
-            }}> Sign in </button>
+            }}> Sign in </button>}
 
             <button onClick={debugeroo}> debugeroo </button>
 
-            <button onClick={testWebSocket}> testwe </button>
-
-
+            <button onClick={testWebSocket}> Connect </button>
 
             <div className="todo-list" style={{ padding: 10 }}>
+                <p>status:{dbStatus} {dbStatus === 'ONLINE' ? '🟢' : '🔴'} </p>
                 <h2>Todo List</h2>
+               
                 {todos?.map(todo => (
                     <div key={todo.id} className="todo-item">
                         <input
