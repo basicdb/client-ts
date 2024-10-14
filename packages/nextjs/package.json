@@ -17,6 +17,8 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@radix-ui/react-avatar": "^1.1.1",
+    "@radix-ui/react-popover": "^1.1.2",
     "dexie": "^4.0.8",
     "dexie-observable": "^4.0.1-beta.13",
     "dexie-react-hooks": "^1.1.7",

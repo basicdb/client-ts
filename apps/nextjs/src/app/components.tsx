@@ -1,47 +1,26 @@
 "use client"
 
-import { useEffect } from "react"
-import { useBasic, BasicSync, useQuery } from "@basictech/nextjs"
+import { useBasic, useQuery, LoginButton } from "@basictech/nextjs"
 
-
-
-
-// const db = new BasicSync('basicdb', { schema: basic_schema });
 
 export function ClientComponent() {
     const { user, isSignedIn, signout, signin, db, dbStatus } = useBasic()
     
     const todos = useQuery(() => db.collection('todos').ref.toArray())
 
-    // const todosCount = useQuery(() => db.collection('todos').ref.count())
 
     const testWebSocket = async () => {
-        // console.log(db)
-
-        // console.log(todos)
-
-        const tok = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRJZCI6IjMwZGNjNGNkLTUwNDAtNGQxMi05YmIwLTRiMTNiMzJlNGI5YyIsInVzZXJJZCI6ImJmOTE4ZjdiLWZlM2YtNGZkOC05ZTE0LTQ1NGZjZGNkMWUyMCIsInNjb3BlIjoib3BlbmlkIiwiaWF0IjoxNzI3ODE5MDAwLCJleHAiOjE3Mjc4MjI2MDB9.jjFmr7jAjLKioxidKvP7NzSaaqQ27vDq9qxmiM2sIR0"
-
-        await db.connect({ access_token: tok }).then(() => {
-            console.log("connected")
-        })
+   
     }
 
     const debugeroo = async () => {
         console.log("debugeroo")
 
-        // console.log(db.)
-
-        // const status = await db.debugeroo().getStatus("ws://localhost:3003/ws")
-        // console.log("sync status", getSyncStatus(status))
-
-        // const all = await db.debugeroo().list()
-        // console.log("all", all)
     }
 
     return (
         <div>
-            
+            {/* <LoginButton /> */}
             { isSignedIn && <span>hello {user?.email}</span>}
 
             <br />

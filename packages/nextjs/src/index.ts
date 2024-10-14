@@ -2,6 +2,7 @@
 
 import { useBasic, BasicProvider } from "./AuthContext";
 import { useLiveQuery as useQuery } from "dexie-react-hooks"
+import LoginButton from "./componets";
 
 // import dynamic from 'next/dynamic'  
 
@@ -9,7 +10,7 @@ import { useLiveQuery as useQuery } from "dexie-react-hooks"
 // import { BasicSync } from "./sync"
 
 export {
-    useBasic, BasicProvider, useQuery
+    useBasic, BasicProvider, useQuery, LoginButton
 }
 
 

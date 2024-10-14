@@ -12,6 +12,15 @@ import { BasicSync } from './sync'
 import { get, add, update, deleteRecord } from './db'
 import { BasicSyncType } from './types'
 
+enum DBStatus {
+    LOADING = "LOADING",
+    OFFLINE = "OFFLINE",
+    CONNECTING = "CONNECTING",
+    ONLINE = "ONLINE",
+    SYNCING = "SYNCING",
+    ERROR = "ERROR"
+}
+
 type User = {
     name?: string,
     email?: string,
@@ -37,7 +46,8 @@ export const BasicContext = createContext<{
     signin: () => void,
     getToken: () => Promise<string>,
     getSignInLink: () => string,
-    db: any
+    db: any, 
+    dbStatus: DBStatus
 }>({
     unicorn: "🦄",
     isLoaded: false,
@@ -47,7 +57,8 @@ export const BasicContext = createContext<{
     signin: () => { },
     getToken: () => new Promise(() => { }),
     getSignInLink: () => "",
-    db: {}
+    db: {},
+    dbStatus: DBStatus.OFFLINE
 });
 
 const EmptyDB: BasicSyncType = {
@@ -89,7 +100,7 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
     const [authCode, setAuthCode] = useState<string | null>(null)
     const [user, setUser] = useState<User>({})
 
-    const [dbStatus, setDbStatus] = useState<string>("OFFLINE")
+    const [dbStatus, setDbStatus] = useState<DBStatus>(DBStatus.OFFLINE)
 
 
     const syncRef = useRef<BasicSync | null>(null);
@@ -121,22 +132,16 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
 
     const connectToDb = async () => {
 
-        // const tok = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjbGllbnRJZCI6IjMwZGNjNGNkLTUwNDAtNGQxMi05YmIwLTRiMTNiMzJlNGI5YyIsInVzZXJJZCI6ImJmOTE4ZjdiLWZlM2YtNGZkOC05ZTE0LTQ1NGZjZGNkMWUyMCIsInNjb3BlIjoib3BlbmlkIiwiaWF0IjoxNzI3ODE5MDAwLCJleHAiOjE3Mjc4MjI2MDB9.jjFmr7jAjLKioxidKvP7NzSaaqQ27vDq9qxmiM2sIR0"
         const tok = await getToken()
-           
+
         console.log('connecting to db...', tok.substring(0, 10))
 
         syncRef.current.connect({ access_token: tok })
-            // .then((res) => {
-            //     console.log('connected to db', res)
-            //     // syncRef.current?.syncable.getStatus().then((status) => {
-            //     //     console.log('sync status', getSyncStatus(status))
-            //     // })
-            // }).catch((e) => {
-            //     console.log('error connecting to db', e)
-            // })
+            .catch((e) => {
+                console.log('error connecting to db', e)
+            })
     }
-    
+
     useEffect(() => {
         if (token) {
             connectToDb()
@@ -303,8 +308,6 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
             setIsLoaded(true)
         }
     }, [token])
-
-
 
 
     const db_ = (tableName: string) => {
