@@ -17,15 +17,23 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "jwt-decode": "^4.0.0", 
-    "@sqlite.org/sqlite-wasm": "^3.46.1-build1"
+    "@radix-ui/react-avatar": "^1.1.1",
+    "@radix-ui/react-popover": "^1.1.2",
+    "dexie": "^4.0.8",
+    "dexie-observable": "^4.0.1-beta.13",
+    "dexie-react-hooks": "^1.1.7",
+    "dexie-syncable": "^4.0.1-beta.13",
+    "jwt-decode": "^4.0.0",
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
+    "@repo/typescript-config": "*",
+    "@types/uuid": "^10.0.0",
     "tsup": "^7.2.0",
-    "typescript": "^5.0.0",
-    "@repo/typescript-config": "*"
+    "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "react": "^16.8.0 || ^17.0.0 || ^18.0.0"
+    "react": "^18.3.1",
+    "rxjs": "^7.8.1"
   }
 }

@@ -1,23 +1,26 @@
-
+// "use client"
 import styles from "./page.module.css";
 
 import { useBasic } from "@basictech/nextjs"
 
 import { ClientComponent } from "./components"
 
-async function test() {
-  console.log("Running on server", process.env.TEST_VAR)
+
+// async function test() {
+//   console.log("Running on server", process.env.TEST_VAR)
   
-  const data = "Hello"
-  return data
-}
+//   const data = "Hello"
+//   return data
+// }
+
+
 
 
 export default function Home() {
-  
 
 
-  const data = test()
+
+  // const data = test()
 
   return (
     <main className={styles.main}>
@@ -29,8 +32,6 @@ export default function Home() {
         <div>
           <h2> auth </h2>
 
-          
-       
         </div>
 
         <div>
@@ -42,10 +43,9 @@ export default function Home() {
 
         <div>
           <h2> server component </h2>
-          <p> {data} </p>
+          {/* <p> {data} </p> */}
         </div>
-
-       
+        
       </div>
     </main>
   );
