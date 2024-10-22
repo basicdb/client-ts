@@ -14,13 +14,6 @@ export const metadata: Metadata = {
 import { schema } from "../../basic.config";
 
 
-// sync settings: 
-// sync : true
-// websocket vs poll
-// allow anon auth 
-
-
-
 export default function RootLayout({
   children,
 }: Readonly<{

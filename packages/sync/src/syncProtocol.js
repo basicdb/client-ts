@@ -80,7 +80,7 @@ export const syncProtocol = function () {
       ws.onerror = function (event) {
         ws.close();
         console.log("ws.onerror", event);
-        onError(event.message, RECONNECT_DELAY);
+        onError(event?.message, RECONNECT_DELAY);
       };
 
       // If socket is closed (network disconnected), inform framework and make it reconnect

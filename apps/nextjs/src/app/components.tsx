@@ -10,13 +10,56 @@ export function ClientComponent() {
 
 
     const testWebSocket = async () => {
-   
+        console.log(dbStatus)
     }
 
     const debugeroo = async () => {
-        console.log("debugeroo")
-
+            console.log("debugeroo")
     }
+
+    /**  ideaas: 
+    //     db.table('tablename')
+        
+    //     const ageFilter = 3
+
+    //     const getXYZQyery = { 
+    //         color: "> blue",
+    //         askd: ['>', ageFilter]
+    //     }
+
+    //     const { data, error , loading} = db.table('todos').select(
+    //         `age,
+    //          color { 
+    //             name,
+    //             hex
+    //         } 
+    //         `
+    //     )
+
+    //     const { data, error , loading} = db.table('todos').select(
+    //         [ 'age', { color: ['name', 'hex']} ]
+    //     )
+
+
+    //     const { data, error , loading} = db.table('todos').select({ 
+    //         age: true, 
+    //         color: {
+    //             name: true, 
+    //             hex: true
+    //         }
+    //     })
+
+    //     const data = db.todo.select()
+
+    //     db.table('todos').get([ 
+    //         [ 'age', '>', 3], 
+    //         [ 'color', '==', 'blue'], 
+
+    //     ])
+
+    //     db.table('todos').where('age', '>', ageFilter)
+    // }
+    */
 
     return (
         <div>

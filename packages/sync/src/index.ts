@@ -1,9 +1,4 @@
-"use client"
-import { createRxDatabase } from 'rxdb';
-import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
-
 import { v7 as uuidv7 } from 'uuid';
-
 import { Dexie, PromiseExtended } from 'dexie';
 import 'dexie-observable';
 import 'dexie-syncable';
@@ -23,6 +18,8 @@ const DexieSyncStatus = {
 }
 
 
+
+
 export class BasicSync extends Dexie {
   basic_schema: any
 
@@ -33,6 +30,7 @@ export class BasicSync extends Dexie {
 
     //todo: handle versions?
 
+    // TODO: validate schema
     this.basic_schema = options.schema
     this.version(1).stores(this._convertSchemaToDxSchema(this.basic_schema))
 
@@ -187,71 +185,4 @@ export class BasicSync extends Dexie {
 
     }
   }
-}
-
-async function createRxDB() {
-
-  const mySchema = {
-    title: 'todos',
-    version: 0,
-    primaryKey: 'id',
-    type: 'object',
-    properties: {
-      id: {
-        type: 'string',
-        maxLength: 100
-      },
-      title: {
-        type: 'string',
-      },
-      completed: {
-        type: 'boolean',
-      }
-    }
-  }
-
-
-
-  const basicdb = await createRxDatabase({
-    name: 'basicdb',                   // <- name
-    storage: getRxStorageDexie(),       // <- RxStorage
-
-    /* Optional parameters: */
-    multiInstance: true,                // <- multiInstance (optional, default: true)
-    eventReduce: true,                  // <- eventReduce (optional, default: false)
-    cleanupPolicy: {}                   // <- custom cleanup policy (optional) 
-  });
-
-  const db = await basicdb.addCollections({
-    // key = collectionName
-    todos: {
-      schema: mySchema,
-      statics: {},                          // (optional) ORM-functions for this collection
-      methods: {},                          // (optional) ORM-functions for documents
-      attachments: {},                      // (optional) ORM-functions for attachments
-      options: {},                          // (optional) Custom parameters that might be used in plugins
-      migrationStrategies: {},              // (optional)
-      autoMigrate: true,                    // (optional) [default=true]
-      // cacheReplacementPolicy: function(){}, // (optional) custom cache replacement policy
-      // conflictHandler: function(){}         // (optional) a custom conflict handler can be used
-    },
-  });
-
-
-  console.dir(db.todos)
-
-  const randomId = () => Math.random().toString(36).substring(2, 15)
-
-  db.todos.insert({
-    id: randomId(),
-    title: 'Todo 1',
-    completed: false
-  })
-
-  const all = await db.todos.find().exec()
-
-
-  console.log(all);
-
-
 }

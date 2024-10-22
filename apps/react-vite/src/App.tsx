@@ -3,7 +3,7 @@ import './App.css'
 
 // import { TestComp } from "@repo/ui/test-comp";
 // import * as hooks from "@repo/kubb";
-import { useBasic, useQuery } from "@basictech/nextjs"
+import { useBasic, useQuery } from "@basictech/react"
 
 function App() {
   const { user, isSignedIn, signout, signin, db, dbStatus } = useBasic()
@@ -13,10 +13,9 @@ function App() {
 
   function debug() { 
 
-    console.log(db)
-    console.log(user)
+    // console.log(db)
+    // console.log(user)
 
- 
   }
 
   
