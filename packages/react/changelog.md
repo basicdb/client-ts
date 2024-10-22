@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.1.1-beta.0
+
+### Patch Changes
+
+- c085672: reset versions
+
 ## 1.1.0
 
 ### Minor Changes
