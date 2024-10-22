@@ -1,18 +1,14 @@
-"use client"
+'use client'
 
-// import { useBasic, BasicProvider } from "./AuthContext";
-// import { useLiveQuery as useQuery } from "dexie-react-hooks"
+import dynamic from 'next/dynamic'
 
-import { useBasic, BasicProvider, useQuery } from "@basictech/react"
+import { useBasic, useQuery } from "@basictech/react"
 import LoginButton from "./componets";
 
-// import dynamic from 'next/dynamic'  
 
-// const BasicSync = dynamic(() => import('./sync'), { ssr: false })
-// import { BasicSync } from "./sync"
+const BasicProvider = dynamic(() => import('@basictech/react').then(mod => mod.BasicProvider), { ssr: false });
+
 
 export {
     useBasic, BasicProvider, useQuery, LoginButton
 }
-
-

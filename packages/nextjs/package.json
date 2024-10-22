@@ -1,6 +1,6 @@
 {
   "name": "@basictech/nextjs",
-  "version": "0.2.0-beta.2",
+  "version": "0.2.0-beta.3",
   "description": "",
   "private": false,
   "publishConfig": {
@@ -17,7 +17,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@basictech/react": "0.2.0-beta.2",
+    "@basictech/react": "0.2.0-beta.3",
     "@radix-ui/react-avatar": "^1.1.1",
     "@radix-ui/react-popover": "^1.1.2"
   },
@@ -28,6 +28,7 @@
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "react": "^17.0.0 || ^18.0.0 || ^19.0.0"
+    "react": "^17.0.0 || ^18.0.0 || ^19.0.0", 
+    "next": "^14.0.0"
   }
 }

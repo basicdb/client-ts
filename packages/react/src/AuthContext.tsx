@@ -3,9 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { jwtDecode } from 'jwt-decode'
 
-
-
-import { BasicSync } from '@repo/sync'
+import { BasicSync } from './sync'
 import { get, add, update, deleteRecord } from './db'
 
 type BasicSyncType = {
@@ -163,8 +161,7 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
 
         const randomState = Math.random().toString(36).substring(7);
 
-        // let baseUrl = "https://api.basic.tech/auth/authorize"
-        let baseUrl = "http://localhost:3003/auth/authorize"
+        let baseUrl = "https://api.basic.tech/auth/authorize"
         baseUrl += `?client_id=${project_id}`
         baseUrl += `&redirect_uri=${encodeURIComponent(window.location.href)}`
         baseUrl += `&response_type=code`

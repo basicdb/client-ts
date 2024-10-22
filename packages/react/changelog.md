@@ -1,5 +1,13 @@
 # 1.3.4
 
+## 0.2.0-beta.3
+
+### Minor Changes
+
+- remove sync lib
+- 4841960: test build
+- remove sync library
+
 ## 0.2.0-beta.2
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@basictech/react",
-  "version": "0.2.0-beta.2",
+  "version": "0.2.0-beta.3",
   "description": "",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -17,9 +17,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@repo/sync": "0.1.0-beta.0",
     "dexie-react-hooks": "^1.1.7",
-    "jwt-decode": "^4.0.0"
+    "jwt-decode": "^4.0.0",
+    "dexie": "^4.0.8",
+    "dexie-observable": "^4.0.1-beta.13",
+    "dexie-syncable": "^4.0.1-beta.13",
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@repo/typescript-config": "*",

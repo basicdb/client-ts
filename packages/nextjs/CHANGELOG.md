@@ -1,5 +1,20 @@
 # @basictech/nextjs
 
+## 0.2.0-beta.3
+
+### Minor Changes
+
+- remove sync lib
+- 4841960: test build
+- remove sync library
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [4841960]
+- Updated dependencies
+  - @basictech/react@0.2.0-beta.3
+
 ## 0.2.0-beta.2
 
 ### Minor Changes

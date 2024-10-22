@@ -17,9 +17,31 @@ In your root component or App.tsx, wrap your application with the `BasicProvider
 ```typescript
 import { BasicProvider } from '@basictech/react';
 
+const schema = {
+  tables: { 
+    todos: { 
+      fields: { 
+        id: { 
+          type: "string",
+          primary: true
+        },
+        title: { 
+          type: "string",
+          indexed: true
+        },
+        completed: { 
+          type: "boolean",
+          indexed: true
+        }
+      }
+    }
+  } 
+}
+
+
 function App() {
   return (
-    <BasicProvider project_id="YOUR_PROJECT_ID">
+    <BasicProvider project_id="YOUR_PROJECT_ID" schema={schema}>
       {/* Your app components */}
     </BasicProvider>
   );
