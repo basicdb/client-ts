@@ -1,4 +1,4 @@
-import { useState } from 'react'
+// import { useState } from 'react'
 import './App.css'
 
 // import { TestComp } from "@repo/ui/test-comp";
@@ -6,7 +6,7 @@ import './App.css'
 import { useBasic, useQuery } from "@basictech/react"
 
 function App() {
-  const { user, isSignedIn, signout, signin, db, dbStatus } = useBasic()
+  const { db, dbStatus } = useBasic()
   const todos = useQuery(() => db.collection('todos').ref.toArray())
 
 
@@ -32,7 +32,7 @@ function App() {
       { dbStatus }
 
       { 
-        todos?.map((todo) => {
+        todos?.map((todo: any) => {
           return <div key={todo.id}>{todo.title}</div>
         })
       }

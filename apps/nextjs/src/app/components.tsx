@@ -3,6 +3,12 @@
 import { useBasic, useQuery, LoginButton } from "@basictech/nextjs"
 
 
+interface Todo {
+  id: string;
+  completed: boolean;
+  title: string;
+}
+
 export function ClientComponent() {
     const { user, isSignedIn, signout, signin, db, dbStatus } = useBasic()
     
@@ -86,7 +92,7 @@ export function ClientComponent() {
                 <p>status:{dbStatus} {dbStatus === 'ONLINE' ? '🟢' : '🔴'} </p>
                 <h2>Todo List</h2>
                
-                {todos?.map(todo => (
+                {todos?.map((todo: Todo) => (
                     <div key={todo.id} className="todo-item">
                         <input
                             type="checkbox"
@@ -103,10 +109,10 @@ export function ClientComponent() {
                         placeholder="New todo"
                         onKeyPress={(e) => {
                             if (e.key === 'Enter') {
-                                const title = e.target.value.trim();
+                                const title = (e.target as HTMLInputElement).value.trim();
                                 if (title) {
                                     db.collection('todos').add({ title, completed: false });
-                                    e.target.value = '';
+                                    (e.target as HTMLInputElement).value = '';
                                 }
                             }
                         }}

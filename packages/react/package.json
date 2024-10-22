@@ -1,6 +1,6 @@
 {
   "name": "@basictech/react",
-  "version": "0.2.0-beta.1",
+  "version": "0.2.0-beta.2",
   "description": "",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -17,13 +17,14 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "jwt-decode": "^4.0.0",
-    "@repo/sync": "0.1.0-beta.0"
+    "@repo/sync": "0.1.0-beta.0",
+    "dexie-react-hooks": "^1.1.7",
+    "jwt-decode": "^4.0.0"
   },
   "devDependencies": {
+    "@repo/typescript-config": "*",
     "tsup": "^7.2.0",
-    "typescript": "^5.0.0",
-    "@repo/typescript-config": "*"
+    "typescript": "^5.0.0"
   },
   "peerDependencies": {
     "react": "^16.8.0 || ^17.0.0 || ^18.0.0"
