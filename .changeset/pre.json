@@ -13,6 +13,10 @@
     "@repo/ui": "0.0.0"
   },
   "changesets": [
+    "cold-falcons-punch",
+    "fluffy-zebras-heal",
+    "fresh-yaks-judge",
+    "pink-avocados-accept",
     "purple-phones-jam"
   ]
 }
