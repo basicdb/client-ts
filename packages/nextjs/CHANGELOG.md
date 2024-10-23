@@ -1,5 +1,16 @@
 # @basictech/nextjs
 
+## 0.2.0-beta.5
+
+### Minor Changes
+
+- schema validation bugfix
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.2.0-beta.5
+
 ## 0.2.0-beta.4
 
 ### Minor Changes

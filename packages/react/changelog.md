@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.2.0-beta.5
+
+### Minor Changes
+
+- schema validation bugfix
+
 ## 0.2.0-beta.4
 
 ### Minor Changes
