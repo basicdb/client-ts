@@ -17,11 +17,12 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "dexie-react-hooks": "^1.1.7",
-    "jwt-decode": "^4.0.0",
+    "ajv": "^8.17.1",
     "dexie": "^4.0.8",
     "dexie-observable": "^4.0.1-beta.13",
+    "dexie-react-hooks": "^1.1.7",
     "dexie-syncable": "^4.0.1-beta.13",
+    "jwt-decode": "^4.0.0",
     "uuid": "^10.0.0"
   },
   "devDependencies": {

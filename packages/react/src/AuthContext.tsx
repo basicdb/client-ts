@@ -6,18 +6,58 @@ import { jwtDecode } from 'jwt-decode'
 import { BasicSync } from './sync'
 import { get, add, update, deleteRecord } from './db'
 
+import { validator, log } from './config'
+
+/*
+schema todo:
+    field types
+    array types
+    relations
+*/
+
+
+const example = {
+    project_id: '123',
+    version: 0,
+    tables: {
+        example: {
+            name: 'example',
+            type: 'collection',
+            fields: {
+                id: {
+                    type: 'uuid',
+                    primary: true,
+                },
+                value: {
+                    type: 'string',
+                    indexed: true,
+                },
+            }
+        },
+        example2: {
+            name: 'example2',
+            type: 'collection',
+            fields: {
+                id: { type: 'string', primary: true },
+                id: { type: 'string', primary: true },
+            }
+        }
+    }
+}
+
+
 type BasicSyncType = {
     basic_schema: any;
     connect: (options: { access_token: string }) => void;
     debugeroo: () => void;
     collection: (name: string) => {
-      ref: {
-        toArray: () => Promise<any[]>;
-        count: () => Promise<number>;
-      };
+        ref: {
+            toArray: () => Promise<any[]>;
+            count: () => Promise<number>;
+        };
     };
     [key: string]: any; // For other potential methods and properties
-  };
+};
 
 
 enum DBStatus {
@@ -54,7 +94,7 @@ export const BasicContext = createContext<{
     signin: () => void,
     getToken: () => Promise<string>,
     getSignInLink: () => string,
-    db: any, 
+    db: any,
     dbStatus: DBStatus
 }>({
     unicorn: "🦄",
@@ -101,6 +141,12 @@ function getSyncStatus(statusCode: number): string {
     }
 }
 
+type ErrorObject = {
+    code: string;
+    title: string;
+    message: string;
+}
+
 export function BasicProvider({ children, project_id, schema }: { children: React.ReactNode, project_id: string, schema: any }) {
     const [isLoaded, setIsLoaded] = useState(false)
     const [isSignedIn, setIsSignedIn] = useState(false)
@@ -108,30 +154,55 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
     const [authCode, setAuthCode] = useState<string | null>(null)
     const [user, setUser] = useState<User>({})
 
-    const [dbStatus, setDbStatus] = useState<DBStatus>(DBStatus.OFFLINE)
-
+    const [dbStatus, setDbStatus] = useState<DBStatus>(DBStatus.LOADING)
 
     const syncRef = useRef<BasicSync | null>(null);
 
+    const [error, setError] = useState<ErrorObject | null>(null)
+
     useEffect(() => {
-        if (!syncRef.current) {
-            syncRef.current = new BasicSync('basicdb', { schema: schema });
+        function initDb() {
+            // console.log('S', validator(example))
+            if (!validator(example)) {
+                console.error('Basic Schema is invalid!', validator.errors)
+                console.group('Schema Errors')
+                let errorMessage = ''
+                validator.errors.forEach((error, index) => {
+                    console.log('error', error)
+                    console.log(`${index + 1}:`, error.message, ` - at ${error.instancePath}`)
+                    errorMessage += `${index + 1}: ${error.message} - at ${error.instancePath}\n`
+                })
+                console.groupEnd('Schema Errors')
+                setError({
+                    code: 'schema_invalid',
+                    title: 'Basic Schema is invalid!',
+                    message: errorMessage
+                })
+                return null
+            }
 
-            // console.log('db is open', syncRef.current.isOpen())
-            // syncRef.current.open()
-            // .then(() => {
-            //     console.log("is open now:", syncRef.current.isOpen())
-            // })
 
-            syncRef.current.handleStatusChange((status: number, url: string) => {
-                setDbStatus(getSyncStatus(status))
-            })
+            if (!syncRef.current) {
+                syncRef.current = new BasicSync('basicdb', { schema: schema });
 
-            syncRef.current.syncable.getStatus().then((status) => {
-                console.log('sync status', getSyncStatus(status))
-            })
+                // console.log('db is open', syncRef.current.isOpen())
+                // syncRef.current.open()
+                // .then(() => {
+                //     console.log("is open now:", syncRef.current.isOpen())
+                // })
+
+                syncRef.current.handleStatusChange((status: number, url: string) => {
+                    setDbStatus(getSyncStatus(status))
+                })
+
+                syncRef.current.syncable.getStatus().then((status) => {
+                    console.log('sync status', getSyncStatus(status))
+                })
+            }
 
         }
+
+        initDb()
     }, []);
 
 
@@ -151,7 +222,7 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
     }
 
     useEffect(() => {
-        if (token) {
+        if (token && syncRef.current) {
             connectToDb()
         }
     }, [token])
@@ -363,10 +434,38 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
             db: syncRef.current,
             dbStatus
         }}>
+            {error && <ErrorDisplay error={error} />}
             {syncRef.current ? children : null}
         </BasicContext.Provider>
     )
 }
+
+function ErrorDisplay({ error }: { error: ErrorObject }) {
+    return <div style={{ 
+        position: 'absolute',
+        top: 20, 
+        left: 20,
+        color: 'black',
+        backgroundColor: '#f8d7da',
+        border: '1px solid #f5c6cb',
+        borderRadius: '4px',
+        padding: '20px',
+        maxWidth: '400px',
+        margin: '20px auto',
+        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+        fontFamily: 'monospace', 
+     }}>
+        <h3 style={{fontSize: '0.8rem', opacity: 0.8}}>code: {error.code}</h3>
+        <h1 style={{fontSize: '1.2rem', lineHeight: '1.5'}}>{error.title}</h1>
+        <p>{error.message}</p>
+    </div>
+}
+
+/*
+possible errors: 
+- projectid missing / invalid
+- schema missing / invalid
+*/
 
 export function useBasic() {
     return useContext(BasicContext);
