@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.2.0-beta.4
+
+### Minor Changes
+
+- add schema validation
+
 ## 0.2.0-beta.3
 
 ### Minor Changes
