@@ -15,7 +15,7 @@ const basic_schema = {
           type: 'collection',
           fields: {
               id: {
-                  type: 'string',
+                  // type: 'string',
                   primary: true,
               },
               title: {

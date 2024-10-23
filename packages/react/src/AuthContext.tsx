@@ -16,34 +16,26 @@ schema todo:
 */
 
 
-const example = {
-    project_id: '123',
-    version: 0,
-    tables: {
-        example: {
-            name: 'example',
-            type: 'collection',
-            fields: {
-                id: {
-                    type: 'uuid',
-                    primary: true,
-                },
-                value: {
-                    type: 'string',
-                    indexed: true,
-                },
-            }
-        },
-        example2: {
-            name: 'example2',
-            type: 'collection',
-            fields: {
-                id: { type: 'string', primary: true },
-                id: { type: 'string', primary: true },
-            }
-        }
-    }
-}
+// const example = {
+//     project_id: '123',
+//     version: 0,
+//     tables: {
+//         example: {
+//             name: 'example',
+//             type: 'collection',
+//             fields: {
+//                 id: {
+//                     type: 'uuid',
+//                     primary: true,
+//                 },
+//                 value: {
+//                     type: 'string',
+//                     indexed: true,
+//                 },
+//             }
+//         }
+//     }
+// }
 
 
 type BasicSyncType = {
@@ -162,13 +154,11 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
 
     useEffect(() => {
         function initDb() {
-            // console.log('S', validator(example))
-            if (!validator(example)) {
+            if (!validator(schema)) {
                 console.error('Basic Schema is invalid!', validator.errors)
                 console.group('Schema Errors')
                 let errorMessage = ''
                 validator.errors.forEach((error, index) => {
-                    console.log('error', error)
                     console.log(`${index + 1}:`, error.message, ` - at ${error.instancePath}`)
                     errorMessage += `${index + 1}: ${error.message} - at ${error.instancePath}\n`
                 })
