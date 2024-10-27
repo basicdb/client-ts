@@ -9,7 +9,7 @@ import 'dexie-syncable';
 import 'dexie-observable';
 
 import { syncProtocol } from './syncProtocol'
-import { SERVER_URL } from '../config'
+import { SERVER_URL, log } from '../config'
 syncProtocol()
 
 
@@ -67,7 +67,7 @@ export class BasicSync extends Dexie {
     
     // Proceed with the WebSocket connection
     
-    console.log('Starting connection...')
+    log('Starting connection...')
     return this.syncable.connect("websocket", WS_URL, { authToken: access_token });
   }
 
@@ -75,7 +75,7 @@ export class BasicSync extends Dexie {
     try {
       const syncNodes = await this.table('_syncNodes').toArray();
       const localSyncNodes = syncNodes.filter(node => node.type === 'local');
-      console.log('Local sync nodes:', localSyncNodes);
+      log('Local sync nodes:', localSyncNodes);
 
       if (localSyncNodes.length > 1) {
 
@@ -84,19 +84,19 @@ export class BasicSync extends Dexie {
         // Check if the largest node is already the master
         const largestNode = localSyncNodes.find(node => node.id === largestNodeId);
         if (largestNode && largestNode.isMaster === 1) {
-          console.log('Largest node is already the master. No changes needed.');
+          log('Largest node is already the master. No changes needed.');
           return; // Exit the function early as no changes are needed
         }
 
 
-        console.log('Largest node id:', largestNodeId);
-        console.error('HEISENBUG: More than one local sync node found.')
+        log('Largest node id:', largestNodeId);
+        log('HEISENBUG: More than one local sync node found.')
 
         for (const node of localSyncNodes) {
-          console.log(`Local sync node keys:`, node.id, node.isMaster);
+          log(`Local sync node keys:`, node.id, node.isMaster);
           await this.table('_syncNodes').update(node.id, { isMaster: node.id === largestNodeId ? 1 : 0 });
 
-          console.log(`HEISENBUG: Setting ${node.id} to ${node.id === largestNodeId ? 'master' : '0'}`);
+          log(`HEISENBUG: Setting ${node.id} to ${node.id === largestNodeId ? 'master' : '0'}`);
         }
 
         // Add a 1 second delay before returning // i dont think this helps?
@@ -104,7 +104,7 @@ export class BasicSync extends Dexie {
 
       }
 
-      console.log('Sync nodes updated');
+      log('Sync nodes updated');
     } catch (error) {
       console.error('Error updating _syncNodes table:', error);
     }
@@ -150,7 +150,7 @@ export class BasicSync extends Dexie {
 
       // --- WRITE ---- // 
       add: (data: any) => {
-        console.log("Adding data to", name, data)
+        log("Adding data to", name, data)
         return this.table(name).add({
           id: uuidv7(),
           ...data

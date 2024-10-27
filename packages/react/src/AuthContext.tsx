@@ -139,7 +139,7 @@ type ErrorObject = {
     message: string;
 }
 
-export function BasicProvider({ children, project_id, schema }: { children: React.ReactNode, project_id: string, schema: any }) {
+export function BasicProvider({ children, project_id, schema, debug = false }: { children: React.ReactNode, project_id: string, schema: any, debug?: boolean }) {
     const [isLoaded, setIsLoaded] = useState(false)
     const [isSignedIn, setIsSignedIn] = useState(false)
     const [token, setToken] = useState<Token | null>(null)
@@ -155,11 +155,11 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
     useEffect(() => {
         function initDb() {
             if (!validator(schema)) {
-                console.error('Basic Schema is invalid!', validator.errors)
+                log('Basic Schema is invalid!', validator.errors)
                 console.group('Schema Errors')
                 let errorMessage = ''
                 validator.errors.forEach((error, index) => {
-                    console.log(`${index + 1}:`, error.message, ` - at ${error.instancePath}`)
+                    log(`${index + 1}:`, error.message, ` - at ${error.instancePath}`)
                     errorMessage += `${index + 1}: ${error.message} - at ${error.instancePath}\n`
                 })
                 console.groupEnd('Schema Errors')
@@ -175,10 +175,10 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
             if (!syncRef.current) {
                 syncRef.current = new BasicSync('basicdb', { schema: schema });
 
-                // console.log('db is open', syncRef.current.isOpen())
+                // log('db is open', syncRef.current.isOpen())
                 // syncRef.current.open()
                 // .then(() => {
-                //     console.log("is open now:", syncRef.current.isOpen())
+                //     log("is open now:", syncRef.current.isOpen())
                 // })
 
                 syncRef.current.handleStatusChange((status: number, url: string) => {
@@ -186,7 +186,7 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
                 })
 
                 syncRef.current.syncable.getStatus().then((status) => {
-                    console.log('sync status', getSyncStatus(status))
+                    log('sync status', getSyncStatus(status))
                 })
             }
 
@@ -203,11 +203,11 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
 
         const tok = await getToken()
 
-        console.log('connecting to db...', tok.substring(0, 10))
+        log('connecting to db...', tok.substring(0, 10))
 
         syncRef.current.connect({ access_token: tok })
             .catch((e) => {
-                console.log('error connecting to db', e)
+                log('error connecting to db', e)
             })
     }
 
@@ -218,7 +218,7 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
     }, [token])
 
     const getSignInLink = () => {
-        console.log('getting sign in link...')
+        log('getting sign in link...')
 
         const randomState = Math.random().toString(36).substring(7);
 
@@ -233,14 +233,14 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
     }
 
     const signin = () => {
-        console.log('signing in: ', getSignInLink())
+        log('signing in: ', getSignInLink())
         const signInLink = getSignInLink()
         //todo: change to the other thing?
         window.location.href = signInLink;
     }
 
     const signout = () => {
-        console.log('signing out!')
+        log('signing out!')
         setUser({})
         setIsSignedIn(false)
         setToken(null)
@@ -249,10 +249,10 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
     }
 
     const getToken = async (): Promise<string> => {
-        console.log('getting token...')
+        log('getting token...')
 
         if (!token) {
-            console.log('no token found')
+            log('no token found')
             throw new Error('no token found')
         }
 
@@ -260,7 +260,7 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
         const isExpired = decoded.exp && decoded.exp < Date.now() / 1000
 
         if (isExpired) {
-            console.log('token is expired - refreshing ...')
+            log('token is expired - refreshing ...')
             const newToken = await fetchToken(token?.refresh)
             return newToken?.access_token || ''
         }
@@ -292,19 +292,21 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
             body: JSON.stringify({ code: code })
         })
             .then(response => response.json())
-            .catch(error => console.error('Error:', error))
+            .catch(error => log('Error:', error))
 
         if (token.error) {
-            console.log('error fetching token', token.error)
+            log('error fetching token', token.error)
             return
         } else {
-            // console.log('token', token)
+            // log('token', token)
             setToken(token)
         }
         return token
     }
 
     useEffect(() => {
+        localStorage.setItem('basic_debug', debug ? 'true' : 'false')
+
         try {
             let cookie_token = getCookie('basic_token')
             if (cookie_token !== '') {
@@ -313,7 +315,7 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
 
             if (window.location.search.includes('code')) {
                 let code = window.location?.search?.split('code=')[1].split('&')[0]
-                // console.log('code found', code)
+                // log('code found', code)
 
                 // todo: check state is valid
                 setAuthCode(code) // remove this? dont need to store code?
@@ -325,7 +327,7 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
                 setIsLoaded(true)
             }
         } catch (e) {
-            console.log('error getting cookie', e)
+            log('error getting cookie', e)
         }
     }, [])
 
@@ -338,14 +340,14 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
                 }
             })
                 .then(response => response.json())
-                .catch(error => console.error('Error:', error))
+                .catch(error => log('Error:', error))
 
             if (user.error) {
-                console.log('error fetching user', user.error)
+                log('error fetching user', user.error)
                 // refreshToken()
                 return
             } else {
-                // console.log('user', user)
+                // log('user', user)
                 document.cookie = `basic_token=${JSON.stringify(token)}; Secure; SameSite=Strict`;
                 setUser(user)
                 setIsSignedIn(true)
@@ -355,7 +357,7 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
 
         async function checkToken() {
             if (!token) {
-                console.log('error: no user token found')
+                log('error: no user token found')
                 return
             }
 
@@ -363,7 +365,7 @@ export function BasicProvider({ children, project_id, schema }: { children: Reac
             const isExpired = decoded.exp && decoded.exp < Date.now() / 1000
 
             if (isExpired) {
-                console.log('token is expired - refreshing ...')
+                log('token is expired - refreshing ...')
                 const newToken = await fetchToken(token?.refresh)
                 fetchUser(newToken.access_token)
             } else {

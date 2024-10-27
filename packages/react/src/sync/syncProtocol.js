@@ -1,8 +1,9 @@
 "use client"
 import { Dexie } from "dexie";
+import { log } from "../config";
 
 export const syncProtocol = function () {
-  console.log("Initializing syncProtocol");
+  log("Initializing syncProtocol");
   // Constants:
   var RECONNECT_DELAY = 5000; // Reconnect delay in case of errors such as network down.
 
@@ -31,7 +32,7 @@ export const syncProtocol = function () {
 
       // sendChanges() method:
       function sendChanges(changes, baseRevision, partial, onChangesAccepted) {
-        console.log("sendChanges", changes.length, baseRevision);
+        log("sendChanges", changes.length, baseRevision);
         ++requestId;
         acceptCallbacks[requestId.toString()] = onChangesAccepted;
 
@@ -65,7 +66,7 @@ export const syncProtocol = function () {
         // Initiate this socket connection by sending our clientIdentity. If we dont have a clientIdentity yet,
         // server will call back with a new client identity that we should use in future WebSocket connections.
         
-        console.log("Opening socket - sending clientIdentity", context.clientIdentity);
+        log("Opening socket - sending clientIdentity", context.clientIdentity);
         ws.send(
           JSON.stringify({
             type: "clientIdentity",
@@ -79,7 +80,7 @@ export const syncProtocol = function () {
       // If network down or other error, tell the framework to reconnect again in some time:
       ws.onerror = function (event) {
         ws.close();
-        console.log("ws.onerror", event);
+        log("ws.onerror", event);
         onError(event?.message, RECONNECT_DELAY);
       };
 
@@ -109,7 +110,7 @@ export const syncProtocol = function () {
           //     partial: true if server has additionalChanges to send. False if these changes were the last known. (applicable if type="changes")
           // }
           var requestFromServer = JSON.parse(event.data);
-          console.log("requestFromServer", requestFromServer, { acceptCallback, isFirstRound });
+          log("requestFromServer", requestFromServer, { acceptCallback, isFirstRound });
 
           if (requestFromServer.type == "clientIdentity") {
             context.clientIdentity = requestFromServer.clientIdentity;
@@ -164,7 +165,7 @@ export const syncProtocol = function () {
             ws.close();
             onError(requestFromServer.message, Infinity); // Don't reconnect - an error in application level means we have done something wrong.
           } else {
-            console.log("unknown message", requestFromServer);
+            log("unknown message", requestFromServer);
             ws.close();
             onError("unknown message", Infinity);
           }

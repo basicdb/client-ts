@@ -15,7 +15,7 @@ const basic_schema = {
           type: 'collection',
           fields: {
               id: {
-                  // type: 'string',
+                  type: 'string',
                   primary: true,
               },
               title: {
@@ -36,7 +36,7 @@ const basic_schema = {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" schema={basic_schema} >
+    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" schema={basic_schema} debug  >
       <App />
     </BasicProvider>
   </StrictMode>,
