@@ -1,5 +1,16 @@
 # @basictech/nextjs
 
+## 0.2.0-beta.6
+
+### Minor Changes
+
+- add debug option
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.2.0-beta.6
+
 ## 0.2.0-beta.5
 
 ### Minor Changes

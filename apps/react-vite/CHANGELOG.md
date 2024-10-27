@@ -1,5 +1,12 @@
 # react-vite
 
+## 0.0.1-beta.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.2.0-beta.6
+
 ## 0.0.1-beta.5
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.2.0-beta.6
+
+### Minor Changes
+
+- add debug option
+
 ## 0.2.0-beta.5
 
 ### Minor Changes
