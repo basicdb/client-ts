@@ -136,7 +136,6 @@ export class BasicSync extends Dexie {
     return this.syncable
   }
 
-
   collection(name: string) {
     // TODO: check against schema
 
@@ -175,12 +174,12 @@ export class BasicSync extends Dexie {
 
       // --- READ ---- // 
 
-      get: (id: string) => {
-        return this.table(name).get(id)
+      get: async (id: string) => {
+        return this.table(name).get(id) 
       },
 
-      getAll: () => {
-        return this.table(name).toArray()
+      getAll: async () => {
+        return this.table(name).toArray();
       },
 
       // --- QUERY ---- // 
@@ -192,4 +191,8 @@ export class BasicSync extends Dexie {
 
     }
   }
+}
+
+class QueryMethod { 
+
 }

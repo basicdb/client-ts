@@ -7,16 +7,21 @@ import { useBasic, useQuery } from "@basictech/react"
 
 function App() {
   const { db, dbStatus } = useBasic()
-  const todos = useQuery(() => db.collection('todos').ref.toArray())
-
-
+  const todos = useQuery(db.collection('todos').getAll())
+  
 
   function debug() { 
 
     // console.log(db)
     // console.log(user)
 
+    db.collection('todos').add({
+      title: "test",
+      completed: false
+    })
+
   }
+
 
   
 
@@ -31,9 +36,15 @@ function App() {
       
       { dbStatus }
 
+
+
+
       { 
-        todos?.map((todo: any) => {
-          return <div key={todo.id}>{todo.title}</div>
+        todos.map((todo: any) => {
+          return <div onClick={()=>console.log(todo)} key={todo.id}>{todo.title}
+          
+            <button onClick={()=>db.collection('todos').delete(todo.id)}>delete</button>
+          </div>
         })
       }
 

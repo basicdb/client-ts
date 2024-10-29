@@ -8,3 +8,17 @@ includes sdks for react and nextjs.
 
 - [@basictech/react](./packages/react/readme.md) - React SDK 
 
+view the changelog [here](./packages/react/CHANGELOG.md)
+
+to install: 
+
+```bash
+npm install @basictech/react
+```
+
+or install the beta: 
+
+```bash
+npm install @basictech/react@beta
+```
+
