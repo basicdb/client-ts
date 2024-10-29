@@ -1,5 +1,14 @@
 # 1.3.4
 
+## 0.2.0-beta.7
+
+### Minor Changes
+
+- update useQuery hook
+
+  - no need to pass param as a function, can now enter query directly
+  - defaults to empty array when loading
+
 ## 0.2.0-beta.6
 
 ### Minor Changes

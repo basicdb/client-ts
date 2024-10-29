@@ -1,5 +1,19 @@
 # @basictech/nextjs
 
+## 0.2.0-beta.7
+
+### Minor Changes
+
+- update useQuery hook
+
+  - no need to pass param as a function, can now enter query directly
+  - defaults to empty array when loading
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.2.0-beta.7
+
 ## 0.2.0-beta.6
 
 ### Minor Changes
