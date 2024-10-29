@@ -8,7 +8,7 @@ includes sdks for react and nextjs.
 
 - [@basictech/react](./packages/react/readme.md) - React SDK 
 
-view the changelog [here](./packages/react/CHANGELOG.md)
+view the changelog [here](./packages/react/changelog.md)
 
 to install: 
 
