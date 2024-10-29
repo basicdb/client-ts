@@ -41,7 +41,7 @@ const schema = {
 
 function App() {
   return (
-    <BasicProvider project_id="YOUR_PROJECT_ID" schema={schema}>
+    <BasicProvider project_id="YOUR_PROJECT_ID" schema={schema} debug>
       {/* Your app components */}
     </BasicProvider>
   );
@@ -75,33 +75,50 @@ function MyComponent() {
 }
 ```
 
-### 3. Database Operations
+## API Reference
 
-You can perform database operations using the `db` object:
+
+### <BasicProvider>
+
+The `BasicProvider` component accepts the following props:
+
+- `project_id` (required): String - Your Basic project ID.
+- `schema` (required): Object - The schema definition for your database.
+- `debug` (optional): Boolean - Enable debug mode for additional logging. Default is `false`.
+- `children` (required): React.ReactNode - The child components to be wrapped by the provider.
+
+
+
+
+### useQuery
+
+returns a react hook that will automatically update data based on your query 
+
+usage: 
 
 ```typescript
-const { db } = useBasic();
+import { useQuery } from '@basictech/react'
 
-// Get data
-const getData = async () => {
-  const data = await db.table('myTable').get();
-  console.log(data);
-};
+function MyComponent() {
+  const data = useQuery(db.collection('data').getAll())
 
-// Add data
-const addData = async () => {
-  const result = await db.table('myTable').add({ key: 'value' });
-  console.log(result);
-};
-
-// Update data
-const updateData = async () => {
-  const result = await db.table('myTable').update('itemId', { key: 'newValue' });
-  console.log(result);
-};
+  return (
+    <div>
+      { 
+        data.map((item: any) => {
+          <> 
+          // render your data here
+          </>
+        })
+      }
+    </div>
+  );
+}
 ```
+Notes:
+- must pass in a db function, ie `db.collection('todos').getAll()`
+- default will be empty array (this might change in the future)
 
-## API Reference
 
 ### useBasic()
 
@@ -113,14 +130,47 @@ Returns an object with the following properties and methods:
 - `signout()`: Function to sign out the user
 - `db`: Object for database operations
 
-### db
 
-The `db` object provides the following methods:
 
-- `table(tableName)`: Selects a table for operations
-  - `get()`: Retrieves all items from the table
-  - `add(value)`: Adds a new item to the table
-  - `update(id, value)`: Updates an item in the table
+db methods: 
+
+- `collection(name: string)`: returns a collection object
+
+
+db.collection(name) methods: 
+
+- `getAll()`: returns all items in the collection
+- `get(id: string)`: returns a single item from the collection
+- `add(data: any)`: adds a new item to the collection
+- `put(data: any)`: updates an item in the collection
+- `update(id: string, data: any)`: updates an item in the collection
+- `delete(id: string)`: deletes an item from the collection
+
+all db.collection() methods return a promise 
+
+example usage: 
+
+```typescript
+import { useBasic } from '@basictech/react';
+
+function MyComponent() {
+  const { db } = useBasic();
+
+  async function addTodo() {
+    await db.collection('todos').add({
+      title: 'test',
+      completed: false
+    })
+  }
+
+  return (
+    <div>
+      <button onClick={addTodo}>Add Todo</button>
+    </div>
+  );
+}
+
+```
 
 ## License
 

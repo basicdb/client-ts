@@ -7,6 +7,9 @@ changeset add
     select minor version
 
 changeset version 
+
+changeset status 
+
 changeset publish
 
 git add 
