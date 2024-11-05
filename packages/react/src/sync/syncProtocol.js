@@ -86,6 +86,7 @@ export const syncProtocol = function () {
 
       // If socket is closed (network disconnected), inform framework and make it reconnect
       ws.onclose = function (event) {
+        // console.log('🙅 ws.onclose', event)
         onError("Socket closed: " + event.reason, RECONNECT_DELAY);
       };
 
@@ -124,7 +125,6 @@ export const syncProtocol = function () {
                 syncedRevision: syncedRevision,
               }),
             );
-          } else if (requestFromServer.type == "error") {
           } else if (requestFromServer.type == "changes") {
             applyRemoteChanges(
               requestFromServer.changes,

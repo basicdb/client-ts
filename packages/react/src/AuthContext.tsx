@@ -79,7 +79,7 @@ type Token = {
 
 export const BasicContext = createContext<{
     unicorn: string,
-    isLoaded: boolean,
+    isAuthReady: boolean,
     isSignedIn: boolean,
     user: User | null,
     signout: () => void,
@@ -90,7 +90,7 @@ export const BasicContext = createContext<{
     dbStatus: DBStatus
 }>({
     unicorn: "🦄",
-    isLoaded: false,
+    isAuthReady: false,
     isSignedIn: false,
     user: null,
     signout: () => { },
@@ -98,7 +98,7 @@ export const BasicContext = createContext<{
     getToken: () => new Promise(() => { }),
     getSignInLink: () => "",
     db: {},
-    dbStatus: DBStatus.OFFLINE
+    dbStatus: DBStatus.LOADING
 });
 
 const EmptyDB: BasicSyncType = {
@@ -140,17 +140,16 @@ type ErrorObject = {
 }
 
 export function BasicProvider({ children, project_id, schema, debug = false }: { children: React.ReactNode, project_id: string, schema: any, debug?: boolean }) {
-    const [isLoaded, setIsLoaded] = useState(false)
-    const [isSignedIn, setIsSignedIn] = useState(false)
+    const [isAuthReady, setIsAuthReady] = useState(false)
+    const [isSignedIn, setIsSignedIn] = useState<boolean>(false)
     const [token, setToken] = useState<Token | null>(null)
-    const [authCode, setAuthCode] = useState<string | null>(null)
     const [user, setUser] = useState<User>({})
 
     const [dbStatus, setDbStatus] = useState<DBStatus>(DBStatus.LOADING)
+    const [error, setError] = useState<ErrorObject | null>(null)
 
     const syncRef = useRef<BasicSync | null>(null);
 
-    const [error, setError] = useState<ErrorObject | null>(null)
 
     useEffect(() => {
         function initDb() {
@@ -173,6 +172,7 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
 
 
             if (!syncRef.current) {
+                log('Initializing BasicDB')
                 syncRef.current = new BasicSync('basicdb', { schema: schema });
 
                 // log('db is open', syncRef.current.isOpen())
@@ -180,30 +180,41 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
                 // .then(() => {
                 //     log("is open now:", syncRef.current.isOpen())
                 // })
-
-                syncRef.current.handleStatusChange((status: number, url: string) => {
-                    setDbStatus(getSyncStatus(status))
-                })
-
-                syncRef.current.syncable.getStatus().then((status) => {
-                    log('sync status', getSyncStatus(status))
-                })
             }
-
         }
 
         initDb()
     }, []);
 
+    useEffect(() => {
+        if (!syncRef.current) {
+            return
+        }
 
-    //todo: 
-    //add random state to signin link & verify random state
+        // syncRef.current.handleStatusChange((status: number, url: string) => {
+        //     setDbStatus(getSyncStatus(status))
+        // })
+
+        syncRef.current.syncable.on('statusChanged', (status: number, url: string) => {
+            setDbStatus(getSyncStatus(status))
+        })
+
+        syncRef.current.syncable.getStatus().then((status) => {
+            setDbStatus(getSyncStatus(status))
+        })
+    }, [syncRef.current])
+
 
     const connectToDb = async () => {
-
         const tok = await getToken()
+        if (!tok) {
+            log('no token found')
+            return
+        }
 
-        log('connecting to db...', tok.substring(0, 10))
+        log('connecting to db...')
+
+        // TODO: handle if signed out after connect() is already called
 
         syncRef.current.connect({ access_token: tok })
             .catch((e) => {
@@ -220,14 +231,15 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
     const getSignInLink = () => {
         log('getting sign in link...')
 
-        const randomState = Math.random().toString(36).substring(7);
+        const randomState = Math.random().toString(36).substring(6);
+        localStorage.setItem('basic_auth_state', randomState)
 
         let baseUrl = "https://api.basic.tech/auth/authorize"
         baseUrl += `?client_id=${project_id}`
         baseUrl += `&redirect_uri=${encodeURIComponent(window.location.href)}`
         baseUrl += `&response_type=code`
         baseUrl += `&scope=openid`
-        baseUrl += `&state=1234zyx`
+        baseUrl += `&state=${randomState}`
 
         return baseUrl;
     }
@@ -244,8 +256,8 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
         setUser({})
         setIsSignedIn(false)
         setToken(null)
-        setAuthCode(null)
         document.cookie = `basic_token=; Secure; SameSite=Strict`;
+        localStorage.removeItem('basic_auth_state')
     }
 
     const getToken = async (): Promise<string> => {
@@ -308,24 +320,32 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
         localStorage.setItem('basic_debug', debug ? 'true' : 'false')
 
         try {
-            let cookie_token = getCookie('basic_token')
-            if (cookie_token !== '') {
-                setToken(JSON.parse(cookie_token))
-            }
-
             if (window.location.search.includes('code')) {
                 let code = window.location?.search?.split('code=')[1].split('&')[0]
-                // log('code found', code)
 
-                // todo: check state is valid
-                setAuthCode(code) // remove this? dont need to store code?
-                fetchToken(code)
+                const state = localStorage.getItem('basic_auth_state')
+                if (!state || state !== window.location.search.split('state=')[1].split('&')[0]) {
+                    log('error: auth state does not match')
+                    setIsAuthReady(true)
 
-                window.history.pushState({}, document.title, "/");
+                    localStorage.removeItem('basic_auth_state')
+                    window.history.pushState({}, document.title, "/");
+                    return
+                }
 
-            } else {
-                setIsLoaded(true)
+                localStorage.removeItem('basic_auth_state')
+
+                fetchToken(code)                
+            } else { 
+                let cookie_token = getCookie('basic_token')
+                if (cookie_token !== '') {
+                    setToken(JSON.parse(cookie_token))
+                } else { 
+                    setIsAuthReady(true)
+                }
             }
+
+
         } catch (e) {
             log('error getting cookie', e)
         }
@@ -333,6 +353,7 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
 
     useEffect(() => {
         async function fetchUser(acc_token: string) {
+            console.info('fetching user')
             const user = await fetch('https://api.basic.tech/auth/userInfo', {
                 method: 'GET',
                 headers: {
@@ -349,15 +370,23 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
             } else {
                 // log('user', user)
                 document.cookie = `basic_token=${JSON.stringify(token)}; Secure; SameSite=Strict`;
+                
+                if (window.location.search.includes('code')) {
+                    window.history.pushState({}, document.title, "/");
+                }
+                
                 setUser(user)
                 setIsSignedIn(true)
-                setIsLoaded(true)
+
+                setIsAuthReady(true)
             }
         }
 
         async function checkToken() {
             if (!token) {
                 log('error: no user token found')
+
+                setIsAuthReady(true)
                 return
             }
 
@@ -375,8 +404,7 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
 
         if (token) {
             checkToken()
-            setIsLoaded(true)
-        }
+        } 
     }, [token])
 
 
@@ -416,7 +444,7 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
     return (
         <BasicContext.Provider value={{
             unicorn: "🦄",
-            isLoaded,
+            isAuthReady,
             isSignedIn,
             user,
             signout,

@@ -6,7 +6,7 @@ import './index.css'
 import { BasicProvider } from "@basictech/react"
 
 const basic_schema = {
-  project_id: '123',
+  project_id: '5a15ffd6-89fe-4921-a1a0-e411ecd6da97',
   namespace: 'todos',
   version: 0,
   tables: {
@@ -28,6 +28,15 @@ const basic_schema = {
               }
           }
       },
+      lists: { 
+        name: 'lists',
+        type: 'collection',
+        fields: {
+          name: {
+            type: 'string',
+          },
+        }
+      }
   }
 }
 
@@ -36,7 +45,7 @@ const basic_schema = {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" schema={basic_schema} debug  >
+    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" schema={basic_schema}   >
       <App />
     </BasicProvider>
   </StrictMode>,

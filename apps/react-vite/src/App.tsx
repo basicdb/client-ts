@@ -6,51 +6,64 @@ import './App.css'
 import { useBasic, useQuery } from "@basictech/react"
 
 function App() {
-  const { db, dbStatus } = useBasic()
-  const todos = useQuery(db.collection('todos').getAll())
-  
+  const { db, dbStatus, isAuthReady, isSignedIn, user, signout, signin } = useBasic()
+  const todos = useQuery(() => db.collection('todos').getAll())
+  // const lists = useQuery(()=>db.collection('lists').getAll())
 
-  function debug() { 
+  function debug() {
 
-    // console.log(db)
-    // console.log(user)
+    // console.log(getSignInLink())
+    // db.collection('todos').add({
+    //   title: "test",
+    //   completed: false
+    // })
 
-    db.collection('todos').add({
-      title: "test",
-      completed: false
-    })
+    // db.collection('lists').add({
+    //   name: "test"
+    // })
 
   }
 
+  console.log(todos)
 
-  
+
+  console.log("isAuthReady", isAuthReady, "isSignedIn", isSignedIn)
+
 
   return (
     <>
       <div>
-      
+
       </div>
       <h1>basic + react</h1>
       <div className="card">
+
+        <div style={{ marginBottom: 10 }}>
+
+
+          {isSignedIn ? <button onClick={signout}>sign out</button> : <button onClick={signin}>sign in</button>}
+          {user?.email}
+        </div>
+
         <button onClick={debug}>debug</button>
-      
-      { dbStatus }
+
+        {dbStatus}
 
 
 
 
-      { 
-        todos.map((todo: any) => {
-          return <div onClick={()=>console.log(todo)} key={todo.id}>{todo.title}
-          
-            <button onClick={()=>db.collection('todos').delete(todo.id)}>delete</button>
-          </div>
-        })
-      }
+        {
+          todos.map((todo: any) => {
+            return <div onClick={() => console.log(todo)} key={todo.id}>{todo.title}
+
+              <button onClick={() => db.collection('todos').delete(todo.id)}>delete</button>
+            </div>
+          })
+        }
 
 
       </div>
-    
+
     </>
   )
 }
