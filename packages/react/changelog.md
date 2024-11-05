@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.2.0-beta.8
+
+### Minor Changes
+
+- changed isLoaded to isAuthReady and fixed dbStatus hooks for useBasic
+
 ## 0.2.0-beta.7
 
 ### Minor Changes

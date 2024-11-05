@@ -1,5 +1,16 @@
 # @basictech/nextjs
 
+## 0.2.0-beta.8
+
+### Minor Changes
+
+- changed isLoaded to isAuthReady and fixed dbStatus hooks for useBasic
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.2.0-beta.8
+
 ## 0.2.0-beta.7
 
 ### Minor Changes
