@@ -5,8 +5,9 @@ import { jwtDecode } from 'jwt-decode'
 
 import { BasicSync } from './sync'
 import { get, add, update, deleteRecord } from './db'
+import { validateSchema } from './schema'
 
-import { validator, log } from './config'
+import { log } from './config'
 
 /*
 schema todo:
@@ -153,11 +154,12 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
 
     useEffect(() => {
         function initDb() {
-            if (!validator(schema)) {
-                log('Basic Schema is invalid!', validator.errors)
+            const valid = validateSchema(schema)
+            if (!valid.valid) {
+                log('Basic Schema is invalid!', valid.errors)
                 console.group('Schema Errors')
                 let errorMessage = ''
-                validator.errors.forEach((error, index) => {
+                valid.errors.forEach((error, index) => {
                     log(`${index + 1}:`, error.message, ` - at ${error.instancePath}`)
                     errorMessage += `${index + 1}: ${error.message} - at ${error.instancePath}\n`
                 })
@@ -169,7 +171,6 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
                 })
                 return null
             }
-
 
             if (!syncRef.current) {
                 log('Initializing BasicDB')

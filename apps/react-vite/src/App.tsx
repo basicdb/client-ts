@@ -12,15 +12,10 @@ function App() {
 
   function debug() {
 
-    // console.log(getSignInLink())
-    // db.collection('todos').add({
-    //   title: "test",
-    //   completed: false
-    // })
-
-    // db.collection('lists').add({
-    //   name: "test"
-    // })
+    db.collection('todos').add({
+      title: "test",
+      completed: true,
+    })
 
   }
 
@@ -50,11 +45,10 @@ function App() {
         {dbStatus}
 
 
-
-
         {
           todos.map((todo: any) => {
-            return <div onClick={() => console.log(todo)} key={todo.id}>{todo.title}
+            return <div onClick={() => console.log(todo)} key={todo.id}>{todo.title} 
+            {todo.completed ? " ✅" : " ❌"}
 
               <button onClick={() => db.collection('todos').delete(todo.id)}>delete</button>
             </div>

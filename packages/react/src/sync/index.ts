@@ -2,14 +2,13 @@
 
 import { v7 as uuidv7 } from 'uuid';
 import { Dexie, PromiseExtended } from 'dexie';
-// if (typeof window !== 'undefined') {
-//   import('dexie-observable');
-// }
 import 'dexie-syncable';
 import 'dexie-observable';
 
 import { syncProtocol } from './syncProtocol'
 import { SERVER_URL, log } from '../config'
+
+import { validateSchema, validateData } from '../schema'
 syncProtocol()
 
 
@@ -149,14 +148,28 @@ export class BasicSync extends Dexie {
 
       // --- WRITE ---- // 
       add: (data: any) => {
-        log("Adding data to", name, data)
+        // log("Adding data to", name, data)
+
+        const valid = validateData(this.basic_schema, name, data)
+        if (!valid.valid) {
+          log('Invalid data', valid)
+          return Promise.reject({ ... valid })
+        }
+
         return this.table(name).add({
           id: uuidv7(),
           ...data
         })
+
       },
 
       put: (data: any) => {
+        const valid = validateData(this.basic_schema, name, data)
+        if (!valid.valid) {
+          log('Invalid data', valid)
+          return Promise.reject({ ... valid })
+        }
+
         return this.table(name).put({
           id: uuidv7(),
           ...data
@@ -164,6 +177,12 @@ export class BasicSync extends Dexie {
       },
 
       update: (id: string, data: any) => {
+        const valid = validateData(this.basic_schema, name, data, false)
+        if (!valid.valid) {
+          log('Invalid data', valid)
+          return Promise.reject({ ... valid })
+        }
+
         return this.table(name).update(id, data)
       },
 

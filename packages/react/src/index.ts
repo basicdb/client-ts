@@ -1,5 +1,6 @@
 import { useBasic, BasicProvider } from "./AuthContext";
 import { useLiveQuery } from "dexie-react-hooks";
+import { validateSchema, validateData, generateEmptySchema } from "./schema";
 
 
 function useQuery(queryable: any) {
@@ -12,7 +13,12 @@ function useQuery(queryable: any) {
 }
 
 
+const sc = { 
+    validateSchema: validateSchema,
+    validateData: validateData,
+    generateEmptySchema: generateEmptySchema
+}
 
 export {
-    useBasic, BasicProvider, useQuery
+    useBasic, BasicProvider, useQuery, sc
 }
