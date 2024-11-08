@@ -1,5 +1,16 @@
 # 1.3.4
 
+## 0.2.0-beta.10
+
+### Minor Changes
+
+- added schema package - test
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/schema@0.1.0-beta.0
+
 ## 0.2.0-beta.9
 
 ### Minor Changes

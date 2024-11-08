@@ -2,13 +2,14 @@
   "mode": "pre",
   "tag": "beta",
   "initialVersions": {
-    "nextjs": "0.1.0",
-    "react-vite": "0.0.0",
+    "nextjs": "0.1.1-beta.9",
+    "react-vite": "0.0.1-beta.9",
     "@repo/eslint-config": "0.0.0",
     "@repo/kubb": "1.0.0",
-    "@basictech/nextjs": "0.1.0",
-    "@basictech/react": "0.1.0",
-    "@repo/sync": "0.0.0",
+    "@basictech/nextjs": "0.2.0-beta.9",
+    "@basictech/react": "0.2.0-beta.9",
+    "@basictech/schema": "0.0.1",
+    "@repo/sync": "0.1.0-beta.0",
     "@repo/typescript-config": "0.0.0",
     "@repo/ui": "0.0.0"
   },
@@ -27,6 +28,7 @@
     "tricky-trains-hear",
     "twenty-boats-enjoy",
     "unlucky-shirts-notice",
-    "wet-lies-work"
+    "wet-lies-work",
+    "wise-flowers-dream"
   ]
 }
