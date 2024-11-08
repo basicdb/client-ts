@@ -1,29 +1,30 @@
+// @ts-nocheck
 // import { useState } from 'react'
 import './App.css'
 
 // import { TestComp } from "@repo/ui/test-comp";
 // import * as hooks from "@repo/kubb";
-import { useBasic, useQuery } from "@basictech/react"
+import { useBasic, useQuery, hello } from "@basictech/react"
 
 function App() {
   const { db, dbStatus, isAuthReady, isSignedIn, user, signout, signin } = useBasic()
-  const todos = useQuery(() => db.collection('todos').getAll())
+  // const todos = useQuery(() => db.collection('todos').getAll())
   // const lists = useQuery(()=>db.collection('lists').getAll())
 
   function debug() {
 
-    db.collection('todos').add({
-      title: "test",
-      completed: true,
-    })
+  //   db.collection('todos').add({
+  //     title: "test",
+  //     completed: true,
+  //   })
 
   }
 
-  console.log(todos)
+  console.log(hello())
+  // console.log(todos)
 
-
-  console.log("isAuthReady", isAuthReady, "isSignedIn", isSignedIn)
-
+  // console.log("isAuthReady", isAuthReady, "isSignedIn", isSignedIn)
+// 
 
   return (
     <>
@@ -45,7 +46,7 @@ function App() {
         {dbStatus}
 
 
-        {
+        {/* {
           todos.map((todo: any) => {
             return <div onClick={() => console.log(todo)} key={todo.id}>{todo.title} 
             {todo.completed ? " ✅" : " ❌"}
@@ -53,7 +54,7 @@ function App() {
               <button onClick={() => db.collection('todos').delete(todo.id)}>delete</button>
             </div>
           })
-        }
+        } */}
 
 
       </div>

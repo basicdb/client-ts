@@ -224,10 +224,10 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
     }
 
     useEffect(() => {
-        if (token && syncRef.current) {
+        if (token && syncRef.current && isSignedIn && isSignedIn) {
             connectToDb()
         }
-    }, [token])
+    }, [isSignedIn])
 
     const getSignInLink = () => {
         log('getting sign in link...')
@@ -259,6 +259,11 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
         setToken(null)
         document.cookie = `basic_token=; Secure; SameSite=Strict`;
         localStorage.removeItem('basic_auth_state')
+
+        if (syncRef.current) {
+            // WIP - BUG - sometimes connects even after signout
+            syncRef.current.disconnect()
+        }
     }
 
     const getToken = async (): Promise<string> => {

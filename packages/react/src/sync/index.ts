@@ -70,6 +70,12 @@ export class BasicSync extends Dexie {
     return this.syncable.connect("websocket", WS_URL, { authToken: access_token });
   }
 
+  async disconnect() {
+    const WS_URL = `${SERVER_URL}/ws`
+
+    return this.syncable.disconnect(WS_URL) 
+  }
+
   private async updateSyncNodes() {
     try {
       const syncNodes = await this.table('_syncNodes').toArray();

@@ -1,9 +1,9 @@
-import { StrictMode, useState } from 'react'
+import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.tsx'
 import './index.css'
 
-import { BasicProvider, sc } from "@basictech/react"
+import { BasicProvider } from "@basictech/react"
 
 const basic_schema = {
   project_id: '5a15ffd6-89fe-4921-a1a0-e411ecd6da97',
@@ -73,7 +73,7 @@ const basic_schema = {
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* <Apppy /> */}
-    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" schema={basic_schema}   >
+    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" schema={basic_schema} debug   >
       <App />
     </BasicProvider>
   </StrictMode>,
