@@ -37,43 +37,43 @@ const basic_schema = {
   }
 }
 
-const new_schema = {
-  project_id: '5a15ffd6-89fe-4921-a1a0-e411ecd6da97',
-  namespace: 'todos',
-  version: 1,
-  tables: {
-    todos: {
-      name: 'todos',
-      type: 'collection',
-      fields: {
-        title: {
-          type: 'string',
-          required: true,
-          indexed: true,
-        },
-        user_id: {
-          type: "string",
-        }
-      }
-    },
-    lists: {
-      name: 'lists',
-      type: 'collection',
-      fields: {
-        name: {
-          type: 'string',
-        },
-      }
-    }, 
-    users: {
-      name: 'users',
-      type: 'collection',
-      fields: {
-        name: { type: 'string' }
-      }
-    }
-  }
-}
+// const new_schema = {
+//   project_id: '5a15ffd6-89fe-4921-a1a0-e411ecd6da97',
+//   namespace: 'todos',
+//   version: 1,
+//   tables: {
+//     todos: {
+//       name: 'todos',
+//       type: 'collection',
+//       fields: {
+//         title: {
+//           type: 'string',
+//           required: true,
+//           indexed: true,
+//         },
+//         user_id: {
+//           type: "string",
+//         }
+//       }
+//     },
+//     lists: {
+//       name: 'lists',
+//       type: 'collection',
+//       fields: {
+//         name: {
+//           type: 'string',
+//         },
+//       }
+//     }, 
+//     users: {
+//       name: 'users',
+//       type: 'collection',
+//       fields: {
+//         name: { type: 'string' }
+//       }
+//     }
+//   }
+// }
 
 // const valid = validateSchema(basic_schema)
 // console.log(valid)
