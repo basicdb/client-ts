@@ -4,27 +4,33 @@ import './App.css'
 
 // import { TestComp } from "@repo/ui/test-comp";
 // import * as hooks from "@repo/kubb";
-import { useBasic, useQuery, hello } from "@basictech/react"
+import { useBasic, useQuery } from "@basictech/react"
+import { validateSchema, validateData } from "@basictech/schema"
+
 
 function App() {
   const { db, dbStatus, isAuthReady, isSignedIn, user, signout, signin } = useBasic()
+  const item = useQuery(() => db.collection('todos').get('01930059-c605-7330-86f3-1e72338038b2'))
   // const todos = useQuery(() => db.collection('todos').getAll())
-  // const lists = useQuery(()=>db.collection('lists').getAll())
 
   function debug() {
+    // const items = db.collection('todos').getAll().then((items) => {
+    //   return items
+    // })
 
-  //   db.collection('todos').add({
-  //     title: "test",
-  //     completed: true,
-  //   })
+    // const item = db.collection('todos').get('"01930059-c605-7330-86f3-1e72338038b2"')
 
+    // console.log(item)
   }
 
-  console.log(hello())
-  // console.log(todos)
+  // const item = await db.collection('todos').get('01930059-c605-7330-86f3-1e72338038b2')
 
-  // console.log("isAuthReady", isAuthReady, "isSignedIn", isSignedIn)
-// 
+  // console.log(item)
+
+
+  // debug()
+  // console.log(item1)
+
 
   return (
     <>
@@ -44,6 +50,8 @@ function App() {
         <button onClick={debug}>debug</button>
 
         {dbStatus}
+
+        {/* {item1} */}
 
 
         {/* {

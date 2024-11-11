@@ -5,7 +5,7 @@ import { jwtDecode } from 'jwt-decode'
 
 import { BasicSync } from './sync'
 import { get, add, update, deleteRecord } from './db'
-import { validateSchema } from './schema'
+import { validateSchema } from '@basictech/schema'
 
 import { log } from './config'
 
