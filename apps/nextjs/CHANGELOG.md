@@ -1,5 +1,29 @@
 # nextjs
 
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [5890f4c]
+- Updated dependencies [ba294c5]
+- Updated dependencies [cd827af]
+- Updated dependencies [1a3fe80]
+- Updated dependencies [3c7b34e]
+- Updated dependencies [13594a9]
+- Updated dependencies [ba294c5]
+- Updated dependencies [c085672]
+- Updated dependencies [f035281]
+- Updated dependencies [4841960]
+- Updated dependencies [96e0156]
+- Updated dependencies [cda3d16]
+- Updated dependencies [2c898ae]
+- Updated dependencies [90ccdd7]
+- Updated dependencies [4841960]
+- Updated dependencies [f035281]
+- Updated dependencies [ef528e9]
+  - @basictech/nextjs@0.2.0
+  - @basictech/react@0.2.0
+
 ## 0.1.1-beta.11
 
 ### Patch Changes

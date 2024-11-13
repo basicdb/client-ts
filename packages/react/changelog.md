@@ -1,5 +1,37 @@
 # 1.3.4
 
+## 0.2.0
+
+### Minor Changes
+
+- 5890f4c: changed isLoaded to isAuthReady and fixed dbStatus hooks for useBasic
+- ba294c5: dependency updates
+- cd827af: add schema validation
+- 1a3fe80: schema validation bugfix
+- 13594a9: added basic-sync
+- ba294c5: dependency update
+- f035281: remove sync lib
+- 4841960: rebuild tsup
+- 96e0156: update schema validation
+- cda3d16: add schema validation
+- 2c898ae: update useQuery hook
+
+  - no need to pass param as a function, can now enter query directly
+  - defaults to empty array when loading
+
+- 90ccdd7: add debug option
+- 4841960: test build
+- f035281: remove sync library
+- ef528e9: added schema package - test
+
+### Patch Changes
+
+- 3c7b34e: version changes mostly
+- c085672: reset versions
+- Updated dependencies [96e0156]
+- Updated dependencies [ef528e9]
+  - @basictech/schema@0.1.0
+
 ## 0.2.0-beta.11
 
 ### Minor Changes
