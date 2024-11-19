@@ -41,7 +41,7 @@ const basicJsonSchema = {
                                         },
                                         "indexed": {
                                             "type": "boolean"
-                                        }, 
+                                        },
                                         "required": {
                                             "type": "boolean"
                                         }
@@ -59,19 +59,19 @@ const basicJsonSchema = {
         }
     },
     "required": ["project_id", "version", "tables"]
-  }
+}
 
 const ajv = new Ajv()
 const validator = ajv.compile(basicJsonSchema)
 
 
-function generateEmptySchema(project_id: string = "", version: number = 0)  {
+function generateEmptySchema(project_id: string = "", version: number = 0) {
     return {
         project_id: project_id,
         version: version,
         tables: {
             fields: {
-                example: { 
+                example: {
                     type: "string",
                 }
             }
@@ -79,10 +79,25 @@ function generateEmptySchema(project_id: string = "", version: number = 0)  {
     }
 }
 
-type Schema = { 
-    project_id : string,
-    version : number,
-    tables : any
+type Schema = {
+    project_id: string,
+    version: number,
+    tables: any
+}
+
+
+/**
+ * Compare two schemas and detect any differences between them
+ * @param oldSchema - The original schema to compare against
+ * @param newSchema - The new schema to compare with the original
+ * @returns {Object} Comparison result containing:
+ *   - valid: boolean indicating if schemas are identical
+ *   - changes: Array of detected changes between schemas
+ */
+function compareSchemas(oldSchema: any, newSchema: any) {
+    const changes = _getSchemaChanges(oldSchema, newSchema)
+    const valid = changes.length === 0 ? true : false
+    return { valid, changes }
 }
 
 
@@ -92,9 +107,9 @@ type Schema = {
  * @param schema - The schema to validate
  * @returns {valid: boolean, errors: any[]} - The validation result
  */
-function validateSchema(schema: any) : {valid: boolean, errors: ErrorObject[]} {
+function validateSchema(schema: any): { valid: boolean, errors: ErrorObject[] } {
     const v = validator(schema)
-    return { 
+    return {
         valid: v,
         errors: validator.errors || []
     }
@@ -139,10 +154,10 @@ function validateData(schema: any, table: string, data: Record<string, any>, che
 
     for (const [fieldName, fieldValue] of Object.entries(data)) {
         const fieldSchema = tableSchema.fields[fieldName]
-        
+
         if (!fieldSchema) {
-            return { 
-                valid: false, 
+            return {
+                valid: false,
                 errors: [{ message: `Field ${fieldName} not found in schema` }],
                 message: "Invalid field"
             }
@@ -151,7 +166,7 @@ function validateData(schema: any, table: string, data: Record<string, any>, che
         const schemaType = fieldSchema.type
         const valueType = typeof fieldValue
 
-        if (  
+        if (
             (schemaType === 'string' && valueType !== 'string') ||
             (schemaType === 'number' && valueType !== 'number') ||
             (schemaType === 'boolean' && valueType !== 'boolean') ||
@@ -159,8 +174,8 @@ function validateData(schema: any, table: string, data: Record<string, any>, che
         ) {
             return {
                 valid: false,
-                errors: [{ 
-                    message: `Field ${fieldName} should be type ${schemaType}, got ${valueType}` 
+                errors: [{
+                    message: `Field ${fieldName} should be type ${schemaType}, got ${valueType}`
                 }],
                 message: "invalid type"
             }
@@ -190,9 +205,9 @@ type SchemaChange = {
     new?: any
 }
 
-function _getSchemaChanges(oldSchema: any, newSchema: any) : SchemaChange[] {
+function _getSchemaChanges(oldSchema: any, newSchema: any): SchemaChange[] {
     // Compare tables between schemas
-    const changes : SchemaChange[] = []
+    const changes: SchemaChange[] = []
 
     // Check for top level property changes
     for (const key in newSchema) {
@@ -233,7 +248,7 @@ function _getSchemaChanges(oldSchema: any, newSchema: any) : SchemaChange[] {
 
         if (!oldTable) {
             changes.push({
-                type: 'table_added', 
+                type: 'table_added',
                 table: tableName
             })
             continue
@@ -304,7 +319,7 @@ function _getSchemaChanges(oldSchema: any, newSchema: any) : SchemaChange[] {
             // Compare all properties except type
             for (const prop in newField) {
                 if (prop === 'type') continue
-                
+
                 if (!(prop in oldField)) {
                     changes.push({
                         type: 'field_property_added',
@@ -358,7 +373,7 @@ function _getSchemaChanges(oldSchema: any, newSchema: any) : SchemaChange[] {
 // }
 
 
-function validateUpdateSchema(oldSchema: any, newSchema: any)  {
+function validateUpdateSchema(oldSchema: any, newSchema: any) {
     const oldValid = validateSchema(oldSchema)
     const newValid = validateSchema(newSchema)
 
@@ -366,13 +381,13 @@ function validateUpdateSchema(oldSchema: any, newSchema: any)  {
         return { valid: false, errors: oldValid.errors.concat(newValid.errors), message: "schemas are is invalid" }
     }
 
-    
+
     const changes = _getSchemaChanges(oldSchema, newSchema)
 
     const changeErrors = []
     for (const change of changes) {
         if (change.type === 'property_changed' && change.property === 'project_id') {
-            changeErrors.push({ 
+            changeErrors.push({
                 change: change,
                 message: "Cannot modify project_id property"
             })
@@ -410,7 +425,8 @@ export {
     validateSchema,
     validateData,
     generateEmptySchema,
-    validateUpdateSchema
+    validateUpdateSchema,
+    compareSchemas,
 }
 
 const schema = {

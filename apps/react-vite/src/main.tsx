@@ -4,7 +4,7 @@ import App from './App.tsx'
 import './index.css'
 
 import { BasicProvider } from "@basictech/react"
-// import { validateSchema, validateData, validateUpdateSchema } from "@basictech/schema"
+// import { validateSchema, validateData, compareSchemas } from "@basictech/schema"
 
 const basic_schema = {
   project_id: '5a15ffd6-89fe-4921-a1a0-e411ecd6da97',
@@ -40,7 +40,7 @@ const basic_schema = {
 // const new_schema = {
 //   project_id: '5a15ffd6-89fe-4921-a1a0-e411ecd6da97',
 //   namespace: 'todos',
-//   version: 1,
+//   version: 0,
 //   tables: {
 //     todos: {
 //       name: 'todos',
@@ -49,11 +49,11 @@ const basic_schema = {
 //         title: {
 //           type: 'string',
 //           required: true,
-//           indexed: true,
+//           indexed: false,
 //         },
-//         user_id: {
-//           type: "string",
-//         }
+//         completed: {
+//           type: "boolean",
+//         },
 //       }
 //     },
 //     lists: {
@@ -64,19 +64,14 @@ const basic_schema = {
 //           type: 'string',
 //         },
 //       }
-//     }, 
-//     users: {
-//       name: 'users',
-//       type: 'collection',
-//       fields: {
-//         name: { type: 'string' }
-//       }
 //     }
 //   }
 // }
 
-// const valid = validateSchema(basic_schema)
-// console.log(valid)
+
+
+// const valid = compareSchemas(basic_schema, new_schema)
+// console.log("valid", valid)
 
 // const validData = validateData(basic_schema, "todos", { title: "hello", completed: true })
 // console.log(validData)
@@ -87,7 +82,7 @@ const basic_schema = {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" schema={basic_schema} debug >
+    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" schema={basic_schema}  >
       <App />
     </BasicProvider>
   </StrictMode>,
