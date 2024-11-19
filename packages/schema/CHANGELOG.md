@@ -1,5 +1,11 @@
 # @basictech/schema
 
+## 0.2.0
+
+### Minor Changes
+
+- add compare schemas
+
 ## 0.1.0
 
 ### Minor Changes

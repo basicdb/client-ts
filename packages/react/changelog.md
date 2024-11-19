@@ -1,5 +1,12 @@
 # 1.3.4
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/schema@0.2.0
+
 ## 0.2.0
 
 ### Minor Changes
