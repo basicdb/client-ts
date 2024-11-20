@@ -1,6 +1,6 @@
 // Basic Schema Library
 // utils for validating and interacting with Basic schemas
-import Ajv, { ErrorObject } from 'ajv'
+import Ajv from 'ajv'
 
 const basicJsonSchema = {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -18,9 +18,21 @@ const basicJsonSchema = {
         },
         "tables": {
             "type": "object",
+            "propertyNames": {
+                "pattern": "^[a-zA-Z0-9_]+$",
+                "minLength": 1,
+                "maxLength": 50, 
+                "type": "string"
+            },
             "patternProperties": {
                 "^[a-zA-Z0-9_]+$": {
                     "type": "object",
+                    "propertyNames": {
+                        "pattern": "^[a-zA-Z0-9_]+$",
+                        "minLength": 1,
+                        "maxLength": 50, 
+                        "type": "string"
+                    },
                     "properties": {
                         "name": {
                             "type": "string"
@@ -31,6 +43,12 @@ const basicJsonSchema = {
                         },
                         "fields": {
                             "type": "object",
+                            "propertyNames": {
+                                "pattern": "^[a-zA-Z0-9_]+$",
+                                "minLength": 1,
+                                "maxLength": 50, 
+                                "type": "string"
+                            },
                             "patternProperties": {
                                 "^[a-zA-Z0-9_]+$": {
                                     "type": "object",
@@ -70,9 +88,14 @@ function generateEmptySchema(project_id: string = "", version: number = 0) {
         project_id: project_id,
         version: version,
         tables: {
-            fields: {
-                example: {
-                    type: "string",
+            foo: { 
+                name: "foo",
+                type: "collection",
+                fields: {
+                    bar: {
+                        type: "string",
+                        required: true,
+                    }
                 }
             }
         }
@@ -100,14 +123,13 @@ function compareSchemas(oldSchema: any, newSchema: any) {
     return { valid, changes }
 }
 
-
 /**
  * Validate a schema
  * only checks if the schema is formatted correctly, not if can be published
  * @param schema - The schema to validate
  * @returns {valid: boolean, errors: any[]} - The validation result
  */
-function validateSchema(schema: any): { valid: boolean, errors: ErrorObject[] } {
+function validateSchema(schema: Schema): { valid: boolean, errors: ErrorObject[] } {
     const v = validator(schema)
     return {
         valid: v,
@@ -115,17 +137,17 @@ function validateSchema(schema: any): { valid: boolean, errors: ErrorObject[] } 
     }
 }
 
-// type ErrorObject = {
-//     keyword: string;
-//     instancePath: string; 
-//     schemaPath: string;
-//     params: Record<string, any>;
-//     propertyName?: string;
-//     message?: string;
-//     schema?: any;
-//     parentSchema?: any;
-//     data?: any;
-// }
+type ErrorObject = {
+    keyword?: string;
+    instancePath?: string; 
+    schemaPath?: string;
+    params?: Record<string, any>;
+    propertyName?: string;
+    message?: string;
+    schema?: any;
+    parentSchema?: any;
+    data?: any;
+}
 
 
 /**
@@ -140,7 +162,7 @@ function validateSchema(schema: any): { valid: boolean, errors: ErrorObject[] } 
  *   - message: Error message if validation failed
  */
 
-function validateData(schema: any, table: string, data: Record<string, any>, checkRequired: boolean = true) {
+function validateData(schema: Schema, table: string, data: Record<string, any>, checkRequired: boolean = true) : { valid: boolean, errors?: ErrorObject[], message?: string } {
     const valid = validateSchema(schema)
     if (!valid.valid) {
         return { valid: false, errors: valid.errors, message: "Schema is invalid" }
@@ -194,7 +216,6 @@ function validateData(schema: any, table: string, data: Record<string, any>, che
 }
 
 type SchemaChangeType = "property_changed" | "property_removed" | "table_added" | "table_removed" | "field_added" | "field_removed" | "field_type_changed" | "field_required_changed" | "field_property_added" | "field_property_changed" | "field_property_removed"
-
 
 type SchemaChange = {
     type: SchemaChangeType,
@@ -360,19 +381,6 @@ function _getSchemaChanges(oldSchema: any, newSchema: any): SchemaChange[] {
 }
 
 
-// function verifyScehma(schema : any ) { 
-//     const valid = validateSchema(schema)
-//     if (!valid.valid) {
-//         return { valid: false, errors: valid.errors, message: "Schema is invalid" }
-//     }
-
-
-
-
-//     return { valid: true, errors: [] }
-// }
-
-
 function validateUpdateSchema(oldSchema: any, newSchema: any) {
     const oldValid = validateSchema(oldSchema)
     const newValid = validateSchema(newSchema)
@@ -428,12 +436,3 @@ export {
     validateUpdateSchema,
     compareSchemas,
 }
-
-const schema = {
-    validateSchema,
-    validateData,
-    generateEmptySchema,
-    validateUpdateSchema
-}
-
-export default schema

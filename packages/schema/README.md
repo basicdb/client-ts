@@ -73,6 +73,19 @@ const result = validateUpdateSchema(oldSchema, newSchema)
 // Returns: { valid: boolean, errors?: any[], changes?: SchemaChange[], message?: string }
 ```
 
+### `compareSchemas(oldSchema: any, newSchema: any)`
+
+Compares two schemas and returns the changes between them.
+
+**Parameters:**
+- `oldSchema` (required): The original schema
+- `newSchema` (required): The updated schema to compare against
+
+```typescript
+const result = compareSchemas(oldSchema, newSchema)
+// Returns: { valid: boolean, changes?: SchemaChange[] }
+```
+
 ## Schema Structure
 
 A valid Basic schema follows this structure:
