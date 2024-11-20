@@ -1,5 +1,12 @@
 # nextjs
 
+## 0.1.3
+
+### Patch Changes
+
+- @basictech/react@0.2.2
+- @basictech/nextjs@0.2.2
+
 ## 0.1.2
 
 ### Patch Changes

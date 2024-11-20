@@ -1,5 +1,11 @@
 # @basictech/schema
 
+## 0.3.0
+
+### Minor Changes
+
+- f9ad8d1: add compare func
+
 ## 0.2.0
 
 ### Minor Changes
