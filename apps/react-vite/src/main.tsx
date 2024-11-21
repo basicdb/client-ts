@@ -4,51 +4,22 @@ import App from './App.tsx'
 import './index.css'
 
 import { BasicProvider } from "@basictech/react"
-import { validateSchema, validateData, compareSchemas, validateUpdateSchema } from "@basictech/schema"
+// import { validateSchema, validateData, compareSchemas, validateUpdateSchema } from "@basictech/schema"
 
 const basic_schema = {
-  project_id: '5a15ffd6-89fe-4921-a1a0-e411ecd6da97',
-  namespace: 'todos',
-  version: 0,
-  tables: {
-    "todos": {
-      name: 'todos',
-      type: 'collection',
-      fields: {
-        title: {
-          type: 'string',
-          required: true,
-          indexed: false,
-        },
-        completed: {
-          type: "boolean",
+  "tables": {
+    "example": {
+      "fields": {
+        "value": {
+          "name": "value",
+          "type": "string",
+          "required": true
         }
       }
-    },
-    "12": { 
-      name: 'todos',
-      type: 'collection',
-      fields: {
-        title: {
-          type: 'string',
-          required: true,
-          indexed: false,
-        },
-        "sd": {
-          type: "string",
-        }, 
-      }
-    },
-    lists: {
-      name: 'lists',
-      type: 'collection',
-      fields: {
-        name: {
-          type: 'string',
-        },
-      }
     }
-  }
+  },
+  "version": 3,
+  "project_id": "5a15ffd6-89fe-4921-a1a0-e411ecd6da97"
 }
 
 // x unique table names
@@ -58,36 +29,36 @@ const basic_schema = {
 // - type validations for each of the respective components of the schema (so table takes an object, fields takes an object, if either of them have elements it is limited to the types and the sub objects with their respective components)
 
 
-const new_schema = {
-  project_id: '5a15ffd6-89fe-4921-a1a0-e411ecd6da97',
-  namespace: 'todos',
-  version: 0,
-  tables: {
-    todos: {
-      name: 'todos',
-      type: 'collection',
-      fields: {
-        title: {
-          type: 'string',
-          required: true,
-          indexed: false,
-        },
-        completed: {
-          type: "sd",
-        },
-      }
-    },
-    lists: {
-      name: 'lists',
-      type: 'collection',
-      fields: {
-        name: {
-          type: 'string',
-        },
-      }
-    }
-  }
-}
+// const new_schema = {
+//   project_id: '5a15ffd6-89fe-4921-a1a0-e411ecd6da97',
+//   namespace: 'todos',
+//   version: 0,
+//   tables: {
+//     todos: {
+//       name: 'todos',
+//       type: 'collection',
+//       fields: {
+//         title: {
+//           type: 'string',
+//           required: true,
+//           indexed: false,
+//         },
+//         completed: {
+//           type: "sd",
+//         },
+//       }
+//     },
+//     lists: {
+//       name: 'lists',
+//       type: 'collection',
+//       fields: {
+//         name: {
+//           type: 'string',
+//         },
+//       }
+//     }
+//   }
+// }
 
 // const valid = validateSchema(basic_schema)
 // console.log("valid", valid)
@@ -104,7 +75,10 @@ const new_schema = {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" schema={basic_schema}  >
+    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" 
+    schema={basic_schema}  
+    debug
+    >
       <App />
     </BasicProvider>
   </StrictMode>,

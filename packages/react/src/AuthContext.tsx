@@ -5,7 +5,7 @@ import { jwtDecode } from 'jwt-decode'
 
 import { BasicSync } from './sync'
 import { get, add, update, deleteRecord } from './db'
-import { validateSchema } from '@basictech/schema'
+import { validateSchema, compareSchemas } from '@basictech/schema'
 
 import { log } from './config'
 
@@ -15,29 +15,6 @@ schema todo:
     array types
     relations
 */
-
-
-// const example = {
-//     project_id: '123',
-//     version: 0,
-//     tables: {
-//         example: {
-//             name: 'example',
-//             type: 'collection',
-//             fields: {
-//                 id: {
-//                     type: 'uuid',
-//                     primary: true,
-//                 },
-//                 value: {
-//                     type: 'string',
-//                     indexed: true,
-//                 },
-//             }
-//         }
-//     }
-// }
-
 
 type BasicSyncType = {
     basic_schema: any;
@@ -114,6 +91,81 @@ const EmptyDB: BasicSyncType = {
     }
 }
 
+async function getSchemaStatus(schema: any) {
+    const projectId = schema.project_id
+    let status = ''
+    const valid = validateSchema(schema)
+
+    if (!valid.valid) {
+        console.warn('BasicDB Error: your local schema is invalid. Please fix errors and try again - sync is disabled')
+        return { 
+            valid: false, 
+            status: 'invalid',
+            latest: null
+        }
+    }
+
+    const latestSchema = await fetch(`https://api.basic.tech/project/${projectId}/schema`)
+    .then(res => res.json())
+    .then(data => data.data[0].schema)
+    .catch(err => {
+        return { 
+            valid: false, 
+            status: 'error',
+            latest: null
+        }
+    })
+
+    if (!latestSchema.version) {
+        return { 
+            valid: false, 
+            status: 'error',
+            latest: null
+        }
+    }
+
+    if (latestSchema.version > schema.version) {
+        // error_code: schema_behind
+        console.warn('BasicDB Error: your local schema version is behind the latest. Found version:', schema.version, 'but expected', latestSchema.version, " - sync is disabled")
+        return { 
+            valid: false, 
+            status: 'behind', 
+            latest: latestSchema
+        }
+    } else if (latestSchema.version < schema.version) {
+        // error_code: schema_ahead
+        console.warn('BasicDB Error: your local schema version is ahead of the latest. Found version:', schema.version, 'but expected', latestSchema.version, " - sync is disabled")
+        return { 
+            valid: false, 
+            status: 'ahead', 
+            latest: latestSchema
+        }
+    } else if (latestSchema.version === schema.version) {
+        const changes = compareSchemas(schema, latestSchema)
+        if (changes.valid) {
+            return { 
+                valid: true,
+                status: 'current',
+                latest: latestSchema
+            }
+        } else {
+            // error_code: schema_conflict
+            console.warn('BasicDB Error: your local schema is conflicting with the latest. Your version:', schema.version, 'does not match origin version', latestSchema.version, " - sync is disabled")
+            return { 
+                valid: false, 
+                status: 'conflict',
+                latest: latestSchema
+            }
+        }
+    } else { 
+        return { 
+            valid: false, 
+            status: 'error',
+            latest: null
+        }
+    }
+}
+
 
 function getSyncStatus(statusCode: number): string {
     switch (statusCode) {
@@ -140,20 +192,52 @@ type ErrorObject = {
     message: string;
 }
 
-export function BasicProvider({ children, project_id, schema, debug = false }: { children: React.ReactNode, project_id: string, schema: any, debug?: boolean }) {
+
+
+export function BasicProvider({ children, project_id, schema, debug = false }: { children: React.ReactNode, project_id: string, schema?: any, debug?: boolean }) {
     const [isAuthReady, setIsAuthReady] = useState(false)
     const [isSignedIn, setIsSignedIn] = useState<boolean>(false)
     const [token, setToken] = useState<Token | null>(null)
     const [user, setUser] = useState<User>({})
 
-    const [dbStatus, setDbStatus] = useState<DBStatus>(DBStatus.LOADING)
+    const [dbStatus, setDbStatus] = useState<DBStatus>(DBStatus.OFFLINE)
     const [error, setError] = useState<ErrorObject | null>(null)
 
     const syncRef = useRef<BasicSync | null>(null);
 
+    const [isReady, setIsReady] = useState<boolean>(false)
+
+    const [shouldConnect, setShouldConnect] = useState<boolean>(false)
+
+
 
     useEffect(() => {
         function initDb() {
+            if (!syncRef.current) {
+                log('Initializing BasicDB')
+                syncRef.current = new BasicSync('basicdb', { schema: schema });
+               
+                syncRef.current.syncable.on('statusChanged', (status: number, url: string) => {
+                    setDbStatus(getSyncStatus(status))
+                })
+        
+                syncRef.current.syncable.getStatus().then((status) => {
+                    setDbStatus(getSyncStatus(status))
+                })
+
+
+                setShouldConnect(true)
+                setIsReady(true)
+
+                // log('db is open', syncRef.current.isOpen())
+                // syncRef.current.open()
+                // .then(() => {
+                //     log("is open now:", syncRef.current.isOpen())
+                // })
+            }
+        }
+
+        async function checkSchema() {
             const valid = validateSchema(schema)
             if (!valid.valid) {
                 log('Basic Schema is invalid!', valid.errors)
@@ -169,42 +253,33 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
                     title: 'Basic Schema is invalid!',
                     message: errorMessage
                 })
+                setIsReady(true)
                 return null
             }
 
-            if (!syncRef.current) {
-                log('Initializing BasicDB')
-                syncRef.current = new BasicSync('basicdb', { schema: schema });
 
-                // log('db is open', syncRef.current.isOpen())
-                // syncRef.current.open()
-                // .then(() => {
-                //     log("is open now:", syncRef.current.isOpen())
-                // })
+            const schemaStatus = await getSchemaStatus(schema)
+
+            if (schemaStatus.valid) {
+                initDb()
+            } else {
+                setIsReady(true)
             }
         }
 
-        initDb()
+        if (schema) {
+            checkSchema()
+        } else {
+            setIsReady(true)
+        }
     }, []);
 
+
     useEffect(() => {
-        if (!syncRef.current) {
-            return
+        if (token && syncRef.current && isSignedIn && shouldConnect) {
+            connectToDb()
         }
-
-        // syncRef.current.handleStatusChange((status: number, url: string) => {
-        //     setDbStatus(getSyncStatus(status))
-        // })
-
-        syncRef.current.syncable.on('statusChanged', (status: number, url: string) => {
-            setDbStatus(getSyncStatus(status))
-        })
-
-        syncRef.current.syncable.getStatus().then((status) => {
-            setDbStatus(getSyncStatus(status))
-        })
-    }, [syncRef.current])
-
+    }, [isSignedIn])
 
     const connectToDb = async () => {
         const tok = await getToken()
@@ -222,12 +297,6 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
                 log('error connecting to db', e)
             })
     }
-
-    useEffect(() => {
-        if (token && syncRef.current && isSignedIn && isSignedIn) {
-            connectToDb()
-        }
-    }, [isSignedIn])
 
     const getSignInLink = () => {
         log('getting sign in link...')
@@ -447,6 +516,12 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
 
     }
 
+    const noDb = ({ 
+        collection: () => {
+            throw new Error('no basicdb found - schema is not provided')
+        }
+    })
+
     return (
         <BasicContext.Provider value={{
             unicorn: "🦄",
@@ -457,11 +532,11 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
             signin,
             getToken,
             getSignInLink,
-            db: syncRef.current,
+            db: syncRef.current ? syncRef.current : noDb,
             dbStatus
         }}>
             {error && <ErrorDisplay error={error} />}
-            {syncRef.current ? children : null}
+            {isReady && children}
         </BasicContext.Provider>
     )
 }

@@ -9,11 +9,14 @@ import { validateSchema, validateData } from "@basictech/schema"
 
 
 function App() {
-  const { db, dbStatus, isAuthReady, isSignedIn, user, signout, signin } = useBasic()
-  const item = useQuery(() => db.collection('todos').get('01930059-c605-7330-86f3-1e72338038b2'))
+  const {  db, dbStatus, isAuthReady, isSignedIn, user, signout, signin } = useBasic()
+  // const item = useQuery(() => db.collection('todos').get('01930059-c605-7330-86f3-1e72338038b2'))
   // const todos = useQuery(() => db.collection('todos').getAll())
 
   function debug() {
+    db.collection('example').getAll().then((items) => {
+      console.log(items)
+    })
     // const items = db.collection('todos').getAll().then((items) => {
     //   return items
     // })
@@ -23,7 +26,9 @@ function App() {
     // console.log(item)
   }
 
-  // const item = await db.collection('todos').get('01930059-c605-7330-86f3-1e72338038b2')
+
+
+  // const item = db.collection('example').get('01930059-c605-7330-86f3-1e72338038b2')
 
   // console.log(item)
 
@@ -39,6 +44,7 @@ function App() {
       </div>
       <h1>basic + react</h1>
       <div className="card">
+        {dbStatus}
 
         <div style={{ marginBottom: 10 }}>
 
@@ -49,7 +55,6 @@ function App() {
 
         <button onClick={debug}>debug</button>
 
-        {dbStatus}
 
         {/* {item1} */}
 
