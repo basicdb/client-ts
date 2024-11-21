@@ -161,7 +161,6 @@ type ErrorObject = {
  *   - errors: Array of validation error objects
  *   - message: Error message if validation failed
  */
-
 function validateData(schema: Schema, table: string, data: Record<string, any>, checkRequired: boolean = true) : { valid: boolean, errors?: ErrorObject[], message?: string } {
     const valid = validateSchema(schema)
     if (!valid.valid) {
@@ -426,7 +425,16 @@ function validateUpdateSchema(oldSchema: any, newSchema: any) {
         }
     }
 
-    return { valid: true, changes: changes }
+    return { valid: true, changes: changes, errors: [] }
+}
+
+
+/**
+ * Get the JSON schema definition for the Basic Schema
+ * @returns {Object} The JSON schema
+ */
+function getJsonSchema() {
+    return basicJsonSchema
 }
 
 export {
@@ -435,4 +443,5 @@ export {
     generateEmptySchema,
     validateUpdateSchema,
     compareSchemas,
+    getJsonSchema
 }
