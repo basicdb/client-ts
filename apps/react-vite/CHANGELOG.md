@@ -1,5 +1,13 @@
 # react-vite
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.3.0
+  - @basictech/schema@0.4.0
+
 ## 0.0.3
 
 ### Patch Changes

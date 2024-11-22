@@ -1,5 +1,16 @@
 # @basictech/nextjs
 
+## 0.3.0
+
+### Minor Changes
+
+- schema validation in react client
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.3.0
+
 ## 0.2.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @basictech/schema
 
+## 0.4.0
+
+### Minor Changes
+
+- schema validation in react client
+
 ## 0.3.0
 
 ### Minor Changes

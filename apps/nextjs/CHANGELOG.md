@@ -1,5 +1,13 @@
 # nextjs
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/nextjs@0.3.0
+  - @basictech/react@0.3.0
+
 ## 0.1.3
 
 ### Patch Changes
