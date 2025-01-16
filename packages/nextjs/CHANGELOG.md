@@ -1,5 +1,17 @@
 # @basictech/nextjs
 
+## 0.4.0-beta.0
+
+### Minor Changes
+
+- a41eb20: schema validation to react client
+
+### Patch Changes
+
+- Updated dependencies [a41eb20]
+- Updated dependencies
+  - @basictech/react@0.4.0-beta.0
+
 ## 0.3.0
 
 ### Minor Changes

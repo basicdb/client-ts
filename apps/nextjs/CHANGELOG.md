@@ -1,5 +1,14 @@
 # nextjs
 
+## 0.1.5-beta.0
+
+### Patch Changes
+
+- Updated dependencies [a41eb20]
+- Updated dependencies
+  - @basictech/nextjs@0.4.0-beta.0
+  - @basictech/react@0.4.0-beta.0
+
 ## 0.1.4
 
 ### Patch Changes

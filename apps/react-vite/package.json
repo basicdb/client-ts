@@ -1,7 +1,7 @@
 {
   "name": "react-vite",
   "private": true,
-  "version": "0.0.4",
+  "version": "0.0.5-beta.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,8 +12,8 @@
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "@basictech/react": "0.3.0",
-    "@basictech/schema": "0.4.0"
+    "@basictech/react": "0.4.0-beta.0",
+    "@basictech/schema": "0.5.0-beta.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.0",
