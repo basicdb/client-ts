@@ -104,9 +104,12 @@ export class BasicSync extends Dexie {
           log(`HEISENBUG: Setting ${node.id} to ${node.id === largestNodeId ? 'master' : '0'}`);
         }
 
-        // Add a 1 second delay before returning // i dont think this helps?
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // add delay to ensure sync nodes are updated // i dont think this helps?
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
+        if (typeof window !== 'undefined') {
+          window.location.reload();
+        }
       }
 
       log('Sync nodes updated');

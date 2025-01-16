@@ -199,24 +199,20 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
     const [isSignedIn, setIsSignedIn] = useState<boolean>(false)
     const [token, setToken] = useState<Token | null>(null)
     const [user, setUser] = useState<User>({})
+    const [shouldConnect, setShouldConnect] = useState<boolean>(false)
+    const [isReady, setIsReady] = useState<boolean>(false)
 
     const [dbStatus, setDbStatus] = useState<DBStatus>(DBStatus.OFFLINE)
     const [error, setError] = useState<ErrorObject | null>(null)
 
     const syncRef = useRef<BasicSync | null>(null);
 
-    const [isReady, setIsReady] = useState<boolean>(false)
-
-    const [shouldConnect, setShouldConnect] = useState<boolean>(false)
-
-
-
     useEffect(() => {
         function initDb() {
             if (!syncRef.current) {
                 log('Initializing BasicDB')
                 syncRef.current = new BasicSync('basicdb', { schema: schema });
-               
+                
                 syncRef.current.syncable.on('statusChanged', (status: number, url: string) => {
                     setDbStatus(getSyncStatus(status))
                 })
@@ -279,7 +275,7 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
         if (token && syncRef.current && isSignedIn && shouldConnect) {
             connectToDb()
         }
-    }, [isSignedIn])
+    }, [isSignedIn, shouldConnect])
 
     const connectToDb = async () => {
         const tok = await getToken()
