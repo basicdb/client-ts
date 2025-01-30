@@ -41,6 +41,30 @@ const basicJsonSchema = {
                             "type": "string",
                             "enum": ["collection"]
                         },
+                        "origin": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string",
+                                    "enum": ["reference"]
+                                },
+                                "project_id": {
+                                    "type": "string"
+                                },
+                                "table": {
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "type": "integer"
+                                }
+                            },
+                            "if": {
+                                "properties": { "type": { "const": "reference" } }
+                            },
+                            "then": {
+                                "required": ["project_id", "table"]
+                            }
+                        },
                         "fields": {
                             "type": "object",
                             "propertyNames": {
