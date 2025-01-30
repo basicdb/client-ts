@@ -1,5 +1,11 @@
 # @basictech/nextjs
 
+## 0.4.0-beta.1
+
+### Patch Changes
+
+- @basictech/react@0.4.0-beta.1
+
 ## 0.4.0-beta.0
 
 ### Minor Changes

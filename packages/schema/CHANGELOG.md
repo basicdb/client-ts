@@ -1,5 +1,11 @@
 # @basictech/schema
 
+## 0.5.0-beta.1
+
+### Minor Changes
+
+- add origin
+
 ## 0.5.0-beta.0
 
 ### Minor Changes
