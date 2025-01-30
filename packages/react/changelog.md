@@ -1,5 +1,19 @@
 # 1.3.4
 
+## 0.4.0
+
+### Minor Changes
+
+- a41eb20: schema validation to react client
+- b572027: patch - occasional sync disconnect
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [a41eb20]
+- Updated dependencies [c76951e]
+  - @basictech/schema@0.5.0
+
 ## 0.4.0-beta.1
 
 ### Patch Changes

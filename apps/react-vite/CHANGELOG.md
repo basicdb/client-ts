@@ -1,5 +1,16 @@
 # react-vite
 
+## 0.0.5
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [a41eb20]
+- Updated dependencies [c76951e]
+- Updated dependencies [b572027]
+  - @basictech/schema@0.5.0
+  - @basictech/react@0.4.0
+
 ## 0.0.5-beta.1
 
 ### Patch Changes
