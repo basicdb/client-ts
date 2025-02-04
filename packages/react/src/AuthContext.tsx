@@ -325,9 +325,23 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
         document.cookie = `basic_token=; Secure; SameSite=Strict`;
         localStorage.removeItem('basic_auth_state')
 
+        // if (syncRef.current) {
+        //     // WIP - BUG - sometimes connects even after signout
+        //     syncRef.current.disconnect()
+
+            
+        // }
         if (syncRef.current) {
-            // WIP - BUG - sometimes connects even after signout
-            syncRef.current.disconnect()
+            (async () => {
+                try {
+                    await syncRef.current.close()
+                    await syncRef.current.delete({disableAutoOpen: false})
+                    syncRef.current = null
+                    window?.location?.reload()
+                } catch (error) {
+                    console.error('Error during database cleanup:', error)
+                }
+            })()
         }
     }
 
@@ -514,7 +528,7 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
 
     const noDb = ({ 
         collection: () => {
-            throw new Error('no basicdb found - schema is not provided')
+            throw new Error('no basicdb found - initialization failed. double check your schema.')
         }
     })
 

@@ -11,11 +11,15 @@ import { validateSchema, validateData } from "@basictech/schema"
 function App() {
   const {  db, dbStatus, isAuthReady, isSignedIn, user, signout, signin } = useBasic()
   // const item = useQuery(() => db.collection('todos').get('01930059-c605-7330-86f3-1e72338038b2'))
-  // const todos = useQuery(() => db.collection('todos').getAll())
+  const todos = useQuery(() => db.collection('hello').getAll())
 
   function debug() {
-    db.collection('example').getAll().then((items) => {
+    db.collection('hello').getAll().then((items) => {
       console.log(items)
+    })
+
+    db.collection('hello').add({
+      hello: `test ${Math.floor(Math.random() * 1000) + 1}`
     })
     // const items = db.collection('todos').getAll().then((items) => {
     //   return items
@@ -59,15 +63,13 @@ function App() {
         {/* {item1} */}
 
 
-        {/* {
-          todos.map((todo: any) => {
-            return <div onClick={() => console.log(todo)} key={todo.id}>{todo.title} 
-            {todo.completed ? " ✅" : " ❌"}
+        {
+          todos?.map((todo: any) => {
+            return <div onClick={() => console.log(todo)} key={todo.id}>{todo.hello} 
 
-              <button onClick={() => db.collection('todos').delete(todo.id)}>delete</button>
             </div>
           })
-        } */}
+        }
 
 
       </div>

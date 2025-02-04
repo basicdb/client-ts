@@ -6,20 +6,45 @@ import './index.css'
 import { BasicProvider } from "@basictech/react"
 // import { validateSchema, validateData, compareSchemas, validateUpdateSchema } from "@basictech/schema"
 
+// const basic_schema = {
+//   "tables": {
+//     "example": {
+//       "fields": {
+//         "value": {
+//           "name": "value",
+//           "type": "string",
+//           "required": true
+//         }
+//       }
+//     }
+//   },
+//   "version": 3,
+//   "project_id": "5a15ffd6-89fe-4921-a1a0-e411ecd6da97"
+// }
+
 const basic_schema = {
+  "project_id": "edf4539a-e2e6-403c-8dec-7267565ce46d",
   "tables": {
-    "example": {
+    "hello": {
+      "type": "collection",
       "fields": {
-        "value": {
-          "name": "value",
+        "hello": {
           "type": "string",
-          "required": true
+          "indexed": true
+        }
+      }
+    },
+    "test": {
+      "type": "collection",
+      "fields": {
+        "test": {
+          "type": "string",
+          "indexed": true
         }
       }
     }
   },
-  "version": 3,
-  "project_id": "5a15ffd6-89fe-4921-a1a0-e411ecd6da97"
+  "version": 1
 }
 
 // x unique table names
@@ -75,7 +100,8 @@ const basic_schema = {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97" 
+    {/* <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97"  */}
+    <BasicProvider project_id="edf4539a-e2e6-403c-8dec-7267565ce46d"  
     schema={basic_schema}  
     debug
     >
