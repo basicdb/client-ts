@@ -22,30 +22,44 @@ import { BasicProvider } from "@basictech/react"
 //   "project_id": "5a15ffd6-89fe-4921-a1a0-e411ecd6da97"
 // }
 
-const basic_schema = {
+export const basic_schema = {
   "project_id": "edf4539a-e2e6-403c-8dec-7267565ce46d",
   "tables": {
     "hello": {
-      "type": "collection",
       "fields": {
         "hello": {
-          "type": "string",
-          "indexed": true
+          "indexed": true,
+          "type": "string"
         }
-      }
+      },
+      "type": "collection"
     },
     "test": {
-      "type": "collection",
       "fields": {
         "test": {
-          "type": "string",
-          "indexed": true
+          "indexed": true,
+          "type": "string"
         }
-      }
+      },
+      "type": "collection"
+    }, 
+    "foo" : { 
+      "origin" : { 
+        "type": "reference", 
+        "project_id": "bd1e08c6-25d0-44eb-bf5a-53922874b5e8",
+        "table": "foo"
+      },
+      "fields": {
+        "bar": {
+          "indexed": true,
+          "type": "string"
+        }
+      },
+      "type": "collection"
     }
   },
-  "version": 1
-}
+  "version": 2
+};
 
 // x unique table names
 // x unique names of fields within a table
@@ -53,37 +67,6 @@ const basic_schema = {
 // - correct types for each field
 // - type validations for each of the respective components of the schema (so table takes an object, fields takes an object, if either of them have elements it is limited to the types and the sub objects with their respective components)
 
-
-// const new_schema = {
-//   project_id: '5a15ffd6-89fe-4921-a1a0-e411ecd6da97',
-//   namespace: 'todos',
-//   version: 0,
-//   tables: {
-//     todos: {
-//       name: 'todos',
-//       type: 'collection',
-//       fields: {
-//         title: {
-//           type: 'string',
-//           required: true,
-//           indexed: false,
-//         },
-//         completed: {
-//           type: "sd",
-//         },
-//       }
-//     },
-//     lists: {
-//       name: 'lists',
-//       type: 'collection',
-//       fields: {
-//         name: {
-//           type: 'string',
-//         },
-//       }
-//     }
-//   }
-// }
 
 // const valid = validateSchema(basic_schema)
 // console.log("valid", valid)
