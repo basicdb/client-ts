@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.5.0-beta.2
+
+### Minor Changes
+
+- fix server url
+
 ## 0.5.0-beta.1
 
 ### Minor Changes

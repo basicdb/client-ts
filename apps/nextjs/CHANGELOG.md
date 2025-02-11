@@ -1,5 +1,17 @@
 # nextjs
 
+## 0.2.0-beta.2
+
+### Minor Changes
+
+- fix server url
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/nextjs@0.5.0-beta.2
+  - @basictech/react@0.5.0-beta.2
+
 ## 0.2.0-beta.1
 
 ### Minor Changes
