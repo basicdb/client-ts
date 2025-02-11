@@ -1,6 +1,6 @@
 
-// export const SERVER_URL = "https://api.basic.tech"
- export const SERVER_URL = "http://localhost:3003"
+export const SERVER_URL = "https://api.basic.tech"
+//  export const SERVER_URL = "http://localhost:3003"
 
 
 export const log = (...args: any[]) => {
