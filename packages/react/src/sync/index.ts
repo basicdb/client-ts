@@ -57,17 +57,12 @@ export class BasicSync extends Dexie {
   }
 
   async connect({ access_token }: { access_token: string }) {
-    // const WS_URL = "ws://localhost:3003/ws"
     const WS_URL = `${SERVER_URL}/ws`
 
-    
-    // Update sync nodes
     await this.updateSyncNodes();
     
-    // Proceed with the WebSocket connection
-    
     log('Starting connection...')
-    return this.syncable.connect("websocket", WS_URL, { authToken: access_token });
+    return this.syncable.connect("websocket", WS_URL, { authToken: access_token, schema: this.basic_schema });
   }
 
   async disconnect() {

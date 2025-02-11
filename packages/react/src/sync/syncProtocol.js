@@ -66,12 +66,14 @@ export const syncProtocol = function () {
         // Initiate this socket connection by sending our clientIdentity. If we dont have a clientIdentity yet,
         // server will call back with a new client identity that we should use in future WebSocket connections.
         
+        // send the schema to the server
         log("Opening socket - sending clientIdentity", context.clientIdentity);
         ws.send(
           JSON.stringify({
             type: "clientIdentity",
             clientIdentity: context.clientIdentity || null,
-            authToken: options.authToken
+            authToken: options.authToken,
+            schema: options.schema
           }),
         );
 
@@ -171,6 +173,7 @@ export const syncProtocol = function () {
           }
         } catch (e) {
           ws.close();
+          log("caught error", e)
           onError(e, Infinity); // Something went crazy. Server sends invalid format or our code is buggy. Dont reconnect - it would continue failing.
         }
       };
