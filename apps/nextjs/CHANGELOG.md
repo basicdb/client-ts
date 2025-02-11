@@ -1,5 +1,17 @@
 # nextjs
 
+## 0.2.0-beta.1
+
+### Minor Changes
+
+- include schema to sync
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/nextjs@0.5.0-beta.1
+  - @basictech/react@0.5.0-beta.1
+
 ## 0.1.6-beta.0
 
 ### Patch Changes

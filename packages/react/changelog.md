@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.5.0-beta.1
+
+### Minor Changes
+
+- include schema to sync
+
 ## 0.5.0-beta.0
 
 ### Minor Changes
