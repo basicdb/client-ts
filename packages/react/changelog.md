@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.5.0-beta.3
+
+### Minor Changes
+
+- add react 19
+
 ## 0.5.0-beta.2
 
 ### Minor Changes

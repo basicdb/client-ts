@@ -1,5 +1,17 @@
 # nextjs
 
+## 0.2.0-beta.3
+
+### Minor Changes
+
+- add react 19
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/nextjs@0.5.0-beta.3
+  - @basictech/react@0.5.0-beta.3
+
 ## 0.2.0-beta.2
 
 ### Minor Changes
