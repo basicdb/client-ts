@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.5.0-beta.4
+
+### Minor Changes
+
+- react - initdb and version check
+
 ## 0.5.0-beta.3
 
 ### Minor Changes

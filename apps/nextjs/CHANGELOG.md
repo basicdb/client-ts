@@ -1,5 +1,17 @@
 # nextjs
 
+## 0.2.0-beta.4
+
+### Minor Changes
+
+- react - initdb and version check
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/nextjs@0.5.0-beta.4
+  - @basictech/react@0.5.0-beta.4
+
 ## 0.2.0-beta.3
 
 ### Minor Changes

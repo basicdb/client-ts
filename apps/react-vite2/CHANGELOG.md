@@ -1,5 +1,16 @@
 # react-vite
 
+## 0.1.0-beta.4
+
+### Minor Changes
+
+- react - initdb and version check
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.5.0-beta.4
+
 ## 0.1.0-beta.3
 
 ### Minor Changes

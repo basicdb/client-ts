@@ -1,6 +1,6 @@
 {
   "name": "@basictech/nextjs",
-  "version": "0.5.0-beta.3",
+  "version": "0.5.0-beta.4",
   "description": "",
   "private": false,
   "publishConfig": {
@@ -17,7 +17,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@basictech/react": "0.5.0-beta.3",
+    "@basictech/react": "0.5.0-beta.4",
     "@radix-ui/react-avatar": "^1.1.1",
     "@radix-ui/react-popover": "^1.1.2"
   },
