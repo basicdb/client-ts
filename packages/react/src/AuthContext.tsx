@@ -8,13 +8,7 @@ import { get, add, update, deleteRecord } from './db'
 import { validateSchema, compareSchemas } from '@basictech/schema'
 
 import { log } from './config'
-
-/*
-schema todo:
-    field types
-    array types
-    relations
-*/
+import {version as currentVersion} from '../package.json'
 
 type BasicSyncType = {
     basic_schema: any;
@@ -192,9 +186,43 @@ type ErrorObject = {
     message: string;
 }
 
+async function checkForNewVersion(): Promise<{ hasNewVersion: boolean, latestVersion: string | null, currentVersion: string | null }> {
+    try {
 
+        const isBeta = currentVersion.includes('beta')
 
-export function BasicProvider({ children, project_id, schema, debug = false }: { children: React.ReactNode, project_id: string, schema?: any, debug?: boolean }) {
+        const response = await fetch(`https://registry.npmjs.org/@basictech/react/${isBeta ? 'beta' : 'latest'}`);
+        if (!response.ok) {
+            throw new Error('Failed to fetch version from npm');
+        }
+
+        const data = await response.json();
+        const latestVersion = data.version;
+
+        if (latestVersion !== currentVersion) {
+        }
+        console.warn('[basic] New version available:', latestVersion, `\nrun "npm install @basictech/react@${latestVersion}" to update`);
+        
+        if (isBeta) {
+            log('thank you for being on basictech/react beta :)')
+        }
+     
+        return {
+            hasNewVersion: currentVersion !== latestVersion,
+            latestVersion,
+            currentVersion
+        };
+    } catch (error) {
+        log('Error checking for new version:', error);
+        return {
+            hasNewVersion: false,
+            latestVersion: null, 
+            currentVersion: null
+        };
+    }
+}
+
+export function BasicProvider({ children, project_id, schema, debug = false }: { children: React.ReactNode, project_id?: string, schema?: any, debug?: boolean }) {
     const [isAuthReady, setIsAuthReady] = useState(false)
     const [isSignedIn, setIsSignedIn] = useState<boolean>(false)
     const [token, setToken] = useState<Token | null>(null)
@@ -208,7 +236,7 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
     const syncRef = useRef<BasicSync | null>(null);
 
     useEffect(() => {
-        function initDb() {
+        function initDb(options: { shouldConnect: boolean }) {
             if (!syncRef.current) {
                 log('Initializing BasicDB')
                 syncRef.current = new BasicSync('basicdb', { schema: schema });
@@ -221,8 +249,12 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
                     setDbStatus(getSyncStatus(status))
                 })
 
+                if (options.shouldConnect) {    
+                    setShouldConnect(true)
+                } else { 
+                    log('Sync is disabled')
+                }
 
-                setShouldConnect(true)
                 setIsReady(true)
 
                 // log('db is open', syncRef.current.isOpen())
@@ -254,13 +286,18 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
             }
 
 
-            const schemaStatus = await getSchemaStatus(schema)
+            let schemaStatus = { valid: false }
+            if (schema.version !== 0) {
+                schemaStatus = await getSchemaStatus(schema)
+            }
 
             if (schemaStatus.valid) {
-                initDb()
+                initDb({ shouldConnect: true })
             } else {
-                setIsReady(true)
+                initDb({ shouldConnect: false })
             }
+            
+            checkForNewVersion()
         }
 
         if (schema) {
@@ -276,6 +313,97 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
             connectToDb()
         }
     }, [isSignedIn, shouldConnect])
+
+    useEffect(() => {
+        localStorage.setItem('basic_debug', debug ? 'true' : 'false')
+
+        try {
+            if (window.location.search.includes('code')) {
+                let code = window.location?.search?.split('code=')[1].split('&')[0]
+
+                const state = localStorage.getItem('basic_auth_state')
+                if (!state || state !== window.location.search.split('state=')[1].split('&')[0]) {
+                    log('error: auth state does not match')
+                    setIsAuthReady(true)
+
+                    localStorage.removeItem('basic_auth_state')
+                    window.history.pushState({}, document.title, "/");
+                    return
+                }
+
+                localStorage.removeItem('basic_auth_state')
+
+                fetchToken(code)                
+            } else { 
+                let cookie_token = getCookie('basic_token')
+                if (cookie_token !== '') {
+                    setToken(JSON.parse(cookie_token))
+                } else { 
+                    setIsAuthReady(true)
+                }
+            }
+
+
+        } catch (e) {
+            log('error getting cookie', e)
+        }
+    }, [])
+
+    useEffect(() => {
+        async function fetchUser(acc_token: string) {
+            console.info('fetching user')
+            const user = await fetch('https://api.basic.tech/auth/userInfo', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${acc_token}`
+                }
+            })
+                .then(response => response.json())
+                .catch(error => log('Error:', error))
+
+            if (user.error) {
+                log('error fetching user', user.error)
+                // refreshToken()
+                return
+            } else {
+                // log('user', user)
+                document.cookie = `basic_token=${JSON.stringify(token)}; Secure; SameSite=Strict`;
+                
+                if (window.location.search.includes('code')) {
+                    window.history.pushState({}, document.title, "/");
+                }
+                
+                setUser(user)
+                setIsSignedIn(true)
+
+                setIsAuthReady(true)
+            }
+        }
+
+        async function checkToken() {
+            if (!token) {
+                log('error: no user token found')
+
+                setIsAuthReady(true)
+                return
+            }
+
+            const decoded = jwtDecode(token?.access_token)
+            const isExpired = decoded.exp && decoded.exp < Date.now() / 1000
+
+            if (isExpired) {
+                log('token is expired - refreshing ...')
+                const newToken = await fetchToken(token?.refresh)
+                fetchUser(newToken.access_token)
+            } else {
+                fetchUser(token.access_token)
+            }
+        }
+
+        if (token) {
+            checkToken()
+        } 
+    }, [token])
 
     const connectToDb = async () => {
         const tok = await getToken()
@@ -400,97 +528,6 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
         }
         return token
     }
-
-    useEffect(() => {
-        localStorage.setItem('basic_debug', debug ? 'true' : 'false')
-
-        try {
-            if (window.location.search.includes('code')) {
-                let code = window.location?.search?.split('code=')[1].split('&')[0]
-
-                const state = localStorage.getItem('basic_auth_state')
-                if (!state || state !== window.location.search.split('state=')[1].split('&')[0]) {
-                    log('error: auth state does not match')
-                    setIsAuthReady(true)
-
-                    localStorage.removeItem('basic_auth_state')
-                    window.history.pushState({}, document.title, "/");
-                    return
-                }
-
-                localStorage.removeItem('basic_auth_state')
-
-                fetchToken(code)                
-            } else { 
-                let cookie_token = getCookie('basic_token')
-                if (cookie_token !== '') {
-                    setToken(JSON.parse(cookie_token))
-                } else { 
-                    setIsAuthReady(true)
-                }
-            }
-
-
-        } catch (e) {
-            log('error getting cookie', e)
-        }
-    }, [])
-
-    useEffect(() => {
-        async function fetchUser(acc_token: string) {
-            console.info('fetching user')
-            const user = await fetch('https://api.basic.tech/auth/userInfo', {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${acc_token}`
-                }
-            })
-                .then(response => response.json())
-                .catch(error => log('Error:', error))
-
-            if (user.error) {
-                log('error fetching user', user.error)
-                // refreshToken()
-                return
-            } else {
-                // log('user', user)
-                document.cookie = `basic_token=${JSON.stringify(token)}; Secure; SameSite=Strict`;
-                
-                if (window.location.search.includes('code')) {
-                    window.history.pushState({}, document.title, "/");
-                }
-                
-                setUser(user)
-                setIsSignedIn(true)
-
-                setIsAuthReady(true)
-            }
-        }
-
-        async function checkToken() {
-            if (!token) {
-                log('error: no user token found')
-
-                setIsAuthReady(true)
-                return
-            }
-
-            const decoded = jwtDecode(token?.access_token)
-            const isExpired = decoded.exp && decoded.exp < Date.now() / 1000
-
-            if (isExpired) {
-                log('token is expired - refreshing ...')
-                const newToken = await fetchToken(token?.refresh)
-                fetchUser(newToken.access_token)
-            } else {
-                fetchUser(token.access_token)
-            }
-        }
-
-        if (token) {
-            checkToken()
-        } 
-    }, [token])
 
 
     const db_ = (tableName: string) => {
