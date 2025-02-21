@@ -200,9 +200,8 @@ async function checkForNewVersion(): Promise<{ hasNewVersion: boolean, latestVer
         const latestVersion = data.version;
 
         if (latestVersion !== currentVersion) {
+            console.warn('[basic] New version available:', latestVersion, `\nrun "npm install @basictech/react@${latestVersion}" to update`);
         }
-        console.warn('[basic] New version available:', latestVersion, `\nrun "npm install @basictech/react@${latestVersion}" to update`);
-        
         if (isBeta) {
             log('thank you for being on basictech/react beta :)')
         }
