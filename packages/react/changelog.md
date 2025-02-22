@@ -1,5 +1,17 @@
 # 1.3.4
 
+## 0.5.0
+
+### Minor Changes
+
+- 6765047: fix server url
+- af26a15: include schema to sync
+- 783ecad: reset db on signout
+- 6dd6ad9: add react 19
+- f9c25a3: fix update notif
+- 7f42c2a: react - initdb and version check
+- weee
+
 ## 0.5.0-beta.5
 
 ### Minor Changes

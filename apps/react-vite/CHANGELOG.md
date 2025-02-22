@@ -1,5 +1,27 @@
 # react-vite
 
+## 0.1.0
+
+### Minor Changes
+
+- 6765047: fix server url
+- af26a15: include schema to sync
+- 6dd6ad9: add react 19
+- f9c25a3: fix update notif
+- 7f42c2a: react - initdb and version check
+- weee
+
+### Patch Changes
+
+- Updated dependencies [6765047]
+- Updated dependencies [af26a15]
+- Updated dependencies [783ecad]
+- Updated dependencies [6dd6ad9]
+- Updated dependencies [f9c25a3]
+- Updated dependencies [7f42c2a]
+- Updated dependencies
+  - @basictech/react@0.5.0
+
 ## 0.1.0-beta.5
 
 ### Minor Changes
