@@ -1,5 +1,17 @@
 # nextjs
 
+## 0.2.0-beta.5
+
+### Minor Changes
+
+- fix update notif
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/nextjs@0.5.0-beta.5
+  - @basictech/react@0.5.0-beta.5
+
 ## 0.2.0-beta.4
 
 ### Minor Changes
