@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.6.0-beta.0
+
+### Minor Changes
+
+- suerver url patch
+
 ## 0.5.0
 
 ### Minor Changes

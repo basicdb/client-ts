@@ -2,7 +2,7 @@
 
 
 enter beta channel
-`changesets pre enter beta`
+`changeset pre enter beta`
 changeset add 
     select minor version
 
