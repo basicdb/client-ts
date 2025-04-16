@@ -6,7 +6,7 @@ import 'dexie-syncable';
 import 'dexie-observable';
 
 import { syncProtocol } from './syncProtocol'
-import { SERVER_URL, log } from '../config'
+import {  log } from '../config'
 
 import { validateSchema, validateData } from '../schema'
 syncProtocol()
@@ -22,7 +22,7 @@ syncProtocol()
 // }
 
 
-
+// const SERVER_URL = "https://pds.basic.id"
 
 
 export class BasicSync extends Dexie {
@@ -57,7 +57,9 @@ export class BasicSync extends Dexie {
   }
 
   async connect({ access_token }: { access_token: string }) {
-    const WS_URL = `${SERVER_URL}/ws`
+    const WS_URL = `wss://pds.basic.id/ws`
+
+    log('Connecting to', WS_URL)
 
     await this.updateSyncNodes();
     
@@ -66,7 +68,7 @@ export class BasicSync extends Dexie {
   }
 
   async disconnect() {
-    const WS_URL = `${SERVER_URL}/ws`
+    const WS_URL = `wss://pds.basic.id/ws`
 
     return this.syncable.disconnect(WS_URL) 
   }

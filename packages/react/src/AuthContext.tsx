@@ -110,6 +110,8 @@ async function getSchemaStatus(schema: any) {
         }
     })
 
+    console.log('latestSchema', latestSchema)
+
     if (!latestSchema.version) {
         return { 
             valid: false, 
@@ -237,7 +239,7 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
     useEffect(() => {
         function initDb(options: { shouldConnect: boolean }) {
             if (!syncRef.current) {
-                log('Initializing BasicDB')
+                log('Initializing Basic DB')
                 syncRef.current = new BasicSync('basicdb', { schema: schema });
                 
                 syncRef.current.syncable.on('statusChanged', (status: number, url: string) => {
@@ -288,11 +290,15 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
             let schemaStatus = { valid: false }
             if (schema.version !== 0) {
                 schemaStatus = await getSchemaStatus(schema)
+                log('schemaStatus', schemaStatus)
+            }else { 
+                log("schema not published - at version 0")
             }
 
             if (schemaStatus.valid) {
                 initDb({ shouldConnect: true })
             } else {
+                log('Schema is invalid!', schemaStatus)
                 initDb({ shouldConnect: false })
             }
             
@@ -431,7 +437,7 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
         baseUrl += `?client_id=${project_id}`
         baseUrl += `&redirect_uri=${encodeURIComponent(window.location.href)}`
         baseUrl += `&response_type=code`
-        baseUrl += `&scope=openid`
+        baseUrl += `&scope=profile`
         baseUrl += `&state=${randomState}`
 
         return baseUrl;
@@ -581,6 +587,7 @@ export function BasicProvider({ children, project_id, schema, debug = false }: {
             db: syncRef.current ? syncRef.current : noDb,
             dbStatus
         }}>
+            
             {error && <ErrorDisplay error={error} />}
             {isReady && children}
         </BasicContext.Provider>

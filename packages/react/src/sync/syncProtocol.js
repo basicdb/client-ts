@@ -26,6 +26,7 @@ export const syncProtocol = function () {
       var acceptCallbacks = {};
 
       // Connect the WebSocket to given url:
+      log("Connecting to", url)
       var ws = new WebSocket(url);
 
       // console.log("ws OPTIONS", options);
