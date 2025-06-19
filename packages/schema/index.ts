@@ -19,16 +19,16 @@ const basicJsonSchema = {
         "tables": {
             "type": "object",
             "propertyNames": {
-                "pattern": "^[a-zA-Z0-9_]+$",
+                "pattern": "^(?!id$|ID$|Id$|iD$)[a-zA-Z0-9][a-zA-Z0-9_]*$",
                 "minLength": 1,
                 "maxLength": 50, 
                 "type": "string"
             },
             "patternProperties": {
-                "^[a-zA-Z0-9_]+$": {
+                "^(?!id$|ID$|Id$|iD$)[a-zA-Z0-9][a-zA-Z0-9_]*$": {
                     "type": "object",
                     "propertyNames": {
-                        "pattern": "^[a-zA-Z0-9_]+$",
+                        "pattern": "^(?!id$|ID$|Id$|iD$)[a-zA-Z0-9][a-zA-Z0-9_]*$",
                         "minLength": 1,
                         "maxLength": 50, 
                         "type": "string"
@@ -68,13 +68,13 @@ const basicJsonSchema = {
                         "fields": {
                             "type": "object",
                             "propertyNames": {
-                                "pattern": "^[a-zA-Z0-9_]+$",
+                                "pattern": "^(?!id$|ID$|Id$|iD$)[a-zA-Z0-9][a-zA-Z0-9_]*$",
                                 "minLength": 1,
                                 "maxLength": 50, 
                                 "type": "string"
                             },
                             "patternProperties": {
-                                "^[a-zA-Z0-9_]+$": {
+                                "^(?!id$|ID$|Id$|iD$)[a-zA-Z0-9][a-zA-Z0-9_]*$": {
                                     "type": "object",
                                     "properties": {
                                         "type": {
@@ -103,9 +103,8 @@ const basicJsonSchema = {
     "required": ["project_id", "version", "tables"]
 }
 
-const ajv = new Ajv()
+const ajv = new Ajv({ allErrors: true })
 const validator = ajv.compile(basicJsonSchema)
-
 
 function generateEmptySchema(project_id: string = "", version: number = 0) {
     return {
@@ -155,10 +154,67 @@ function compareSchemas(oldSchema: any, newSchema: any) {
  */
 function validateSchema(schema: Schema): { valid: boolean, errors: ErrorObject[] } {
     const v = validator(schema)
+    const ajvErrors = validator.errors || []
+    
+    // Add custom validation for case-insensitive duplicates
+    const customErrors = validateCaseInsensitiveNames(schema)
+    
     return {
-        valid: v,
-        errors: validator.errors || []
+        valid: v && customErrors.length === 0,
+        errors: [...ajvErrors, ...customErrors]
     }
+}
+
+/**
+ * Validate that table and field names are case-insensitive unique
+ * @param schema - The schema to validate
+ * @returns Array of validation errors
+ */
+function validateCaseInsensitiveNames(schema: Schema): ErrorObject[] {
+    const errors: ErrorObject[] = []
+    
+    if (!schema.tables) return errors
+    
+    // Check for case-insensitive duplicate table names
+    const tableNames = new Set<string>()
+    for (const tableName in schema.tables) {
+        const lowerTableName = tableName.toLowerCase()
+        if (tableNames.has(lowerTableName)) {
+            errors.push({
+                keyword: 'caseInsensitiveDuplicate',
+                instancePath: `/tables/${tableName}`,
+                schemaPath: '#/properties/tables/propertyNames',
+                params: { propertyName: tableName },
+                message: `Table name "${tableName}" conflicts with another table name (case-insensitive)`
+            })
+        } else {
+            tableNames.add(lowerTableName)
+        }
+    }
+    
+    // Check for case-insensitive duplicate field names within each table
+    for (const tableName in schema.tables) {
+        const table = schema.tables[tableName]
+        if (!table.fields) continue
+        
+        const fieldNames = new Set<string>()
+        for (const fieldName in table.fields) {
+            const lowerFieldName = fieldName.toLowerCase()
+            if (fieldNames.has(lowerFieldName)) {
+                errors.push({
+                    keyword: 'caseInsensitiveDuplicate',
+                    instancePath: `/tables/${tableName}/fields/${fieldName}`,
+                    schemaPath: '#/properties/tables/patternProperties/^%5E%28%3F%21id%24%7CID%24%7CId%24%7CiD%24%29%5Ba-zA-Z0-9%5D%5Ba-zA-Z0-9_%5D*%24/properties/fields/propertyNames',
+                    params: { propertyName: fieldName },
+                    message: `Field name "${fieldName}" conflicts with another field name in table "${tableName}" (case-insensitive)`
+                })
+            } else {
+                fieldNames.add(lowerFieldName)
+            }
+        }
+    }
+    
+    return errors
 }
 
 type ErrorObject = {
@@ -298,51 +354,53 @@ function _getSchemaChanges(oldSchema: any, newSchema: any): SchemaChange[] {
             continue
         }
 
-        // Compare fields
-        for (const fieldName in newTable.fields) {
-            const newField = newTable.fields[fieldName]
-            const oldField = oldTable.fields[fieldName]
+        // Compare fields - only if both tables have fields
+        if (newTable.fields && oldTable.fields) {
+            for (const fieldName in newTable.fields) {
+                const newField = newTable.fields[fieldName]
+                const oldField = oldTable.fields[fieldName]
 
-            if (!oldField) {
-                changes.push({
-                    type: 'field_added',
-                    table: tableName,
-                    field: fieldName
-                })
-                continue
+                if (!oldField) {
+                    changes.push({
+                        type: 'field_added',
+                        table: tableName,
+                        field: fieldName
+                    })
+                    continue
+                }
+
+                // Check for field type changes
+                if (newField.type !== oldField.type) {
+                    changes.push({
+                        type: 'field_type_changed',
+                        table: tableName,
+                        field: fieldName,
+                        old: oldField.type,
+                        new: newField.type
+                    })
+                }
+
+                // Check for required flag changes
+                if (newField.required !== oldField.required) {
+                    changes.push({
+                        type: 'field_required_changed',
+                        table: tableName,
+                        field: fieldName,
+                        old: oldField.required,
+                        new: newField.required
+                    })
+                }
             }
 
-            // Check for field type changes
-            if (newField.type !== oldField.type) {
-                changes.push({
-                    type: 'field_type_changed',
-                    table: tableName,
-                    field: fieldName,
-                    old: oldField.type,
-                    new: newField.type
-                })
-            }
-
-            // Check for required flag changes
-            if (newField.required !== oldField.required) {
-                changes.push({
-                    type: 'field_required_changed',
-                    table: tableName,
-                    field: fieldName,
-                    old: oldField.required,
-                    new: newField.required
-                })
-            }
-        }
-
-        // Check for removed fields
-        for (const fieldName in oldTable.fields) {
-            if (!newTable.fields[fieldName]) {
-                changes.push({
-                    type: 'field_removed',
-                    table: tableName,
-                    field: fieldName
-                })
+            // Check for removed fields
+            for (const fieldName in oldTable.fields) {
+                if (!newTable.fields[fieldName]) {
+                    changes.push({
+                        type: 'field_removed',
+                        table: tableName,
+                        field: fieldName
+                    })
+                }
             }
         }
     }
@@ -352,7 +410,7 @@ function _getSchemaChanges(oldSchema: any, newSchema: any): SchemaChange[] {
         const newTable = newSchema.tables[tableName]
         const oldTable = oldSchema.tables[tableName]
 
-        if (!oldTable) continue
+        if (!oldTable || !newTable.fields || !oldTable.fields) continue
 
         for (const fieldName in newTable.fields) {
             const newField = newTable.fields[fieldName]
@@ -409,9 +467,25 @@ function validateUpdateSchema(oldSchema: any, newSchema: any) {
     const newValid = validateSchema(newSchema)
 
     if (!oldValid.valid || !newValid.valid) {
-        return { valid: false, errors: oldValid.errors.concat(newValid.errors), message: "schemas are is invalid" }
+        return { valid: false, errors: oldValid.errors.concat(newValid.errors), message: "schemas are invalid" }
     }
 
+    // Always check that version is incremented by 1
+    if (newSchema.version !== oldSchema.version + 1) {
+        return {
+            valid: false,
+            errors: [{
+                change: {
+                    type: 'property_changed',
+                    property: 'version',
+                    old: oldSchema.version,
+                    new: newSchema.version
+                },
+                message: `Version must be incremented by 1. Expected version:${oldSchema.version + 1}, got version:${newSchema.version}`
+            }],
+            message: "Version must be incremented by 1"
+        }
+    }
 
     const changes = _getSchemaChanges(oldSchema, newSchema)
 
@@ -422,15 +496,6 @@ function validateUpdateSchema(oldSchema: any, newSchema: any) {
                 change: change,
                 message: "Cannot modify project_id property"
             })
-        }
-
-        if (change.type === 'property_changed' && change.property === 'version') {
-            if (change.new !== change.old + 1) {
-                changeErrors.push({
-                    change: change,
-                    message: `Version must be incremented by 1. Expected version:${change.old + 1}, got version:${change.new}`
-                })
-            }
         }
 
         if (change.type === 'field_type_changed') {
