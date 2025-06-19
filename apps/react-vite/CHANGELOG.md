@@ -1,5 +1,18 @@
 # react-vite
 
+## 0.2.0
+
+### Minor Changes
+
+- update schema rules
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [d241ffa]
+  - @basictech/schema@0.6.0
+  - @basictech/react@0.6.0
+
 ## 0.1.1-beta.0
 
 ### Patch Changes

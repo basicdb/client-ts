@@ -1,5 +1,16 @@
 # 1.3.4
 
+## 0.6.0
+
+### Minor Changes
+
+- d241ffa: suerver url patch
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/schema@0.6.0
+
 ## 0.6.0-beta.0
 
 ### Minor Changes

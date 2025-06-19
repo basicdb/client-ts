@@ -1,5 +1,12 @@
 # @basictech/nextjs
 
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [d241ffa]
+  - @basictech/react@0.6.0
+
 ## 0.5.1-beta.0
 
 ### Patch Changes
