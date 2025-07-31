@@ -1,5 +1,11 @@
 # @basictech/schema
 
+## 0.7.0-beta.0
+
+### Minor Changes
+
+- update schema
+
 ## 0.6.0
 
 ### Minor Changes

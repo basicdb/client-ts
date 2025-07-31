@@ -1,7 +1,7 @@
 {
   "name": "react-vite2",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1-beta.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,8 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@basictech/react": "0.6.0",
-    "@basictech/schema": "0.6.0",
+    "@basictech/react": "0.7.0-beta.0",
+    "@basictech/schema": "0.7.0-beta.0",
     "@monaco-editor/react": "^4.7.0",
     "@types/react-syntax-highlighter": "^15.5.13",
     "react": "^18.3.1",
