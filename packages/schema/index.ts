@@ -1,6 +1,7 @@
 // Basic Schema Library
 // utils for validating and interacting with Basic schemas
-import Ajv from 'ajv'
+import { validate as standaloneValidator } from './generated-validator'
+import type { ErrorObject as AjvErrorObject } from 'ajv'
 
 const basicJsonSchema = {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -103,8 +104,8 @@ const basicJsonSchema = {
     "required": ["project_id", "version", "tables"]
 }
 
-const ajv = new Ajv({ allErrors: true })
-const validator = ajv.compile(basicJsonSchema)
+// Using standalone pre-compiled validator (no dynamic code generation)
+const validator = standaloneValidator
 
 function generateEmptySchema(project_id: string = "", version: number = 0) {
     return {
@@ -152,7 +153,7 @@ function compareSchemas(oldSchema: any, newSchema: any) {
  * @param schema - The schema to validate
  * @returns {valid: boolean, errors: any[]} - The validation result
  */
-function validateSchema(schema: Schema): { valid: boolean, errors: ErrorObject[] } {
+function validateSchema(schema: Schema): { valid: boolean, errors: AjvErrorObject[] } {
     const v = validator(schema)
     const ajvErrors = validator.errors || []
     

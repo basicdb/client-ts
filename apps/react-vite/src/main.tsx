@@ -5,6 +5,8 @@ import './index.css'
 
 import { BasicProvider } from "@basictech/react"
 
+import { schema } from '../basic.config'
+
 export const basic_schema = {
   "project_id": "edf4539a-e2e6-403c-8dec-7267565ce46d",
   "tables": {
@@ -41,7 +43,7 @@ export const basic_schema = {
       "type": "collection"
     }
   },
-  "version": 2
+  "version": 3
 };
 
 // x unique table names
@@ -68,7 +70,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* <BasicProvider project_id="5a15ffd6-89fe-4921-a1a0-e411ecd6da97"  */}
     <BasicProvider project_id="edf4539a-e2e6-403c-8dec-7267565ce46d"  
-    schema={basic_schema}  
+    schema={schema}  
     debug
     >
       <App />

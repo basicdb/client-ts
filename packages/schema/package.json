@@ -10,10 +10,12 @@
     "access": "public"
   },
   "scripts": {
+    "prebuild": "node scripts/generate-validator.js",
     "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "generate-validator": "node scripts/generate-validator.js"
   },
   "author": "",
   "license": "ISC",

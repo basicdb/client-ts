@@ -1,0 +1,18 @@
+{
+  "mode": "pre",
+  "tag": "beta",
+  "initialVersions": {
+    "nextjs": "0.2.1",
+    "react-vite": "0.2.0",
+    "react-vite2": "0.2.0",
+    "@repo/eslint-config": "0.0.0",
+    "@repo/kubb": "1.0.0",
+    "@basictech/nextjs": "0.5.1",
+    "@basictech/react": "0.6.0",
+    "@basictech/schema": "0.6.0",
+    "@repo/sync": "0.1.0",
+    "@repo/typescript-config": "0.0.0",
+    "@repo/ui": "0.0.0"
+  },
+  "changesets": []
+}
