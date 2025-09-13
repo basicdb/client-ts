@@ -4,7 +4,7 @@ import App from './App.tsx'
 import './index.css'
 
 import { BasicProvider } from "@basictech/react"
-import { schema } from '../basic.config'
+import { schema } from '../basic.config.ts'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
