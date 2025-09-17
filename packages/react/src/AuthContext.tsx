@@ -7,6 +7,9 @@ import { validateSchema, compareSchemas } from '@basictech/schema'
 
 import { log } from './config'
 import {version as currentVersion} from '../package.json'
+import { createVersionUpdater } from './updater/versionUpdater'
+import { getMigrations } from './updater/updateMigrations'
+
 export interface BasicStorage {
     get(key: string): Promise<string | null>
     set(key: string, value: string): Promise<void>
@@ -428,6 +431,21 @@ export function BasicProvider({
     useEffect(() => {
         const initializeAuth = async () => {
             await storageAdapter.set(STORAGE_KEYS.DEBUG, debug ? 'true' : 'false')
+
+            // Initialize version updater and run migrations
+            try {
+                const versionUpdater = createVersionUpdater(storageAdapter, currentVersion, getMigrations())
+                const updateResult = await versionUpdater.checkAndUpdate()
+                
+                if (updateResult.updated) {
+                    log(`App updated from ${updateResult.fromVersion} to ${updateResult.toVersion}`)
+                } else {
+                    log(`App version ${updateResult.toVersion} is current`)
+                }
+            } catch (error) {
+                log('Version update failed:', error)
+                // Continue with app initialization even if version update fails
+            }
 
             try {
             if (window.location.search.includes('code')) {

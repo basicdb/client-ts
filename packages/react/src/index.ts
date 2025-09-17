@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useBasic, BasicProvider, BasicStorage, LocalStorageAdapter } from "./AuthContext";
 import { useLiveQuery as useQuery } from "dexie-react-hooks";
+// import { createVersionUpdater, VersionUpdater, Migration } from "./versionUpdater";
 
 // const useQuery = (queryable: any) => {
 //     const [loading, setLoading] = useState(true)
@@ -34,5 +35,9 @@ import { useLiveQuery as useQuery } from "dexie-react-hooks";
 
 
 export {
-    useBasic, BasicProvider, useQuery, BasicStorage, LocalStorageAdapter
+    useBasic, BasicProvider, useQuery
 }
+
+// export type {
+//     VersionUpdater, Migration
+// }
