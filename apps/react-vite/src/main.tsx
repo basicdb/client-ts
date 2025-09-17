@@ -30,7 +30,7 @@ import { schema as basic_schema } from '../basic.config.ts'
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BasicProvider 
-    // project_id="edf4539a-e2e6-403c-8dec-7267565ce46d"  
+    project_id="edf4539a-e2e6-403c-8dec-7267565ce46d"  
     schema={basic_schema}  
     debug
     >

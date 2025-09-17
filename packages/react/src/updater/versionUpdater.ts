@@ -1,4 +1,4 @@
-import { BasicStorage } from '../AuthContext'
+import { BasicStorage } from '../utils/storage'
 
 export interface VersionInfo {
   version: string

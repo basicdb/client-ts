@@ -8,7 +8,7 @@ import 'dexie-observable';
 import { syncProtocol } from './syncProtocol'
 import {  log } from '../config'
 
-import { validateSchema, validateData } from '../schema'
+import { validateSchema, validateData } from '@basictech/schema'
 syncProtocol()
 
 
