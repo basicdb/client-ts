@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useBasic, BasicProvider } from "./AuthContext";
+import { useBasic, BasicProvider, BasicStorage, LocalStorageAdapter } from "./AuthContext";
 import { useLiveQuery as useQuery } from "dexie-react-hooks";
 
 // const useQuery = (queryable: any) => {
@@ -34,5 +34,5 @@ import { useLiveQuery as useQuery } from "dexie-react-hooks";
 
 
 export {
-    useBasic, BasicProvider, useQuery
+    useBasic, BasicProvider, useQuery, BasicStorage, LocalStorageAdapter
 }
