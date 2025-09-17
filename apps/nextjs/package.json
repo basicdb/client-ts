@@ -1,6 +1,6 @@
 {
   "name": "nextjs",
-  "version": "0.2.1",
+  "version": "0.3.0-beta.1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -9,8 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@basictech/nextjs": "0.5.1",
-    "@basictech/react": "0.6.0",
+    "@basictech/nextjs": "0.6.0-beta.1",
+    "@basictech/react": "0.7.0-beta.1",
     "next": "^14.2.6",
     "react": "^18",
     "react-dom": "^18"

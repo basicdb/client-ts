@@ -1,5 +1,23 @@
 # react-vite
 
+## 0.3.0-beta.1
+
+### Minor Changes
+
+- storage adapater update
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.1
+
+## 0.2.1-beta.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.0
+
 ## 0.2.0
 
 ### Minor Changes

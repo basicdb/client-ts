@@ -1,5 +1,23 @@
 # @basictech/nextjs
 
+## 0.6.0-beta.1
+
+### Minor Changes
+
+- storage adapater update
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.1
+
+## 0.5.2-beta.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.0
+
 ## 0.5.1
 
 ### Patch Changes

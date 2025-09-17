@@ -1,5 +1,17 @@
 # 1.3.4
 
+## 0.7.0-beta.1
+
+### Minor Changes
+
+- storage adapater update
+
+## 0.7.0-beta.0
+
+### Minor Changes
+
+- localstorage update
+
 ## 0.6.0
 
 ### Minor Changes
