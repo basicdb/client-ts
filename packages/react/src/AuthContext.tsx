@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { jwtDecode } from 'jwt-decode'
 
 import { BasicSync } from './sync'
+import { BasicDBSDK } from './db_ts'
 
 import { log } from './config'
 import { version as currentVersion } from '../package.json'
@@ -64,6 +65,7 @@ export const BasicContext = createContext<{
     getToken: () => Promise<string>,
     getSignInLink: (redirectUri?: string) => Promise<string>,
     db: any,
+    remoteDb: any,
     dbStatus: DBStatus
 }>({
     unicorn: "🦄",
@@ -76,6 +78,7 @@ export const BasicContext = createContext<{
     getToken: () => new Promise(() => { }),
     getSignInLink: () => Promise.resolve(""),
     db: {},
+    remoteDb: {},
     dbStatus: DBStatus.LOADING
 });
 
@@ -102,6 +105,7 @@ export function BasicProvider({
     const [isSignedIn, setIsSignedIn] = useState<boolean>(false)
     const [token, setToken] = useState<Token | null>(null)
     const [user, setUser] = useState<User>({})
+    
     const [shouldConnect, setShouldConnect] = useState<boolean>(false)
     const [isReady, setIsReady] = useState<boolean>(false)
 
@@ -111,6 +115,7 @@ export function BasicProvider({
     const [pendingRefresh, setPendingRefresh] = useState<boolean>(false)
 
     const syncRef = useRef<BasicSync | null>(null);
+    const remoteDbRef = useRef<BasicDBSDK<any> | null>(null);
     const storageAdapter = storage || new LocalStorageAdapter();
 
     const isDevMode = () => isDevelopment(debug)
@@ -170,6 +175,17 @@ export function BasicProvider({
                 }
 
                 setIsReady(true)
+            }
+
+            // Initialize remote database SDK
+            if (!remoteDbRef.current && project_id && schema) {
+                log('Initializing Remote DB SDK')
+                remoteDbRef.current = new BasicDBSDK({
+                    project_id: project_id,
+                    schema: schema,
+                    getToken: getToken,
+                    baseUrl: 'https://api.basic.tech'
+                });
             }
         }
 
@@ -660,6 +676,7 @@ export function BasicProvider({
             getToken,
             getSignInLink,
             db: syncRef.current ? syncRef.current : noDb,
+            remoteDb: remoteDbRef.current ? remoteDbRef.current : noDb,
             dbStatus
         }}>
 
