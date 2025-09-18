@@ -176,17 +176,6 @@ export function BasicProvider({
 
                 setIsReady(true)
             }
-
-            // Initialize remote database SDK
-            if (!remoteDbRef.current && project_id && schema) {
-                log('Initializing Remote DB SDK')
-                remoteDbRef.current = new BasicDBSDK({
-                    project_id: project_id,
-                    schema: schema,
-                    getToken: getToken,
-                    baseUrl: 'https://api.basic.tech'
-                });
-            }
         }
 
         async function checkSchema() {
@@ -245,6 +234,20 @@ export function BasicProvider({
         connectToDb()
 
     }, [isSignedIn, shouldConnect])
+
+    // Initialize remote database when we have a token
+    useEffect(() => {
+        if (project_id && schema && token?.access_token && !remoteDbRef.current) {
+            log('Initializing Remote DB SDK')
+            
+            remoteDbRef.current = new BasicDBSDK({
+                project_id: project_id,
+                schema: schema,
+                getToken: () => getToken(),
+                baseUrl: 'https://api.basic.tech'
+            });
+        }
+    }, [token, project_id, schema])
 
     useEffect(() => {
         const initializeAuth = async () => {

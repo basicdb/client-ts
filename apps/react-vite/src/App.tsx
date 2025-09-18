@@ -14,25 +14,31 @@ function App() {
   const todos = useQuery(() => db.collection('hello').getAll())
   const foo = useQuery(() => db.collection('foo').getAll())
 
-  const testRemoteDb = async () => { 
-    console.time('testRemoteDb getAll')
-    const result = await remoteDb.table('hello').getAll()
-    console.timeEnd('testRemoteDb')
-    console.time('testRemoteDb create')
-    const add_result = await remoteDb.table('hello').create({
-      hello: 'test remote'
-    })
-    console.timeEnd('testRemoteDb create')
 
-    console.time('testRemoteDb update')
+  const testRemoteDb = async () => { 
+    const result = await remoteDb.table('hello').getAll()
+    console.log('getAll result:', result)
+
+    const add_result = await remoteDb.table('hello').create({
+      hello: 'test remote whoa'
+    })
+    console.log('Remote DB create_result:', add_result)
+
+
     const update_result = await remoteDb.table('hello').update(add_result.id, {
       hello: 'test remote updated'
     })
-    console.timeEnd('testRemoteDb update')
+    console.log('Remote DB update_result:', update_result)
 
 
-    console.log('Remote DB result:', result)
-    console.log('Remote DB add_result:', add_result)
+    const get_result = await remoteDb.table('hello').getAll().filter({
+      hello: 'test remote updated'
+    })
+    console.log('Remote DB get_result:', get_result)
+
+
+
+ 
   }
 
 
