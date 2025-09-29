@@ -127,7 +127,7 @@ export function BasicProvider({
                 if (token) {
                     const refreshToken = token.refresh_token || localStorage.getItem('basic_refresh_token')
                     if (refreshToken) {
-                        fetchToken(refreshToken).catch(error => {
+                        fetchToken(refreshToken, true).catch(error => {
                             log('Retry refresh failed:', error)
                         })
                     }
@@ -266,14 +266,14 @@ export function BasicProvider({
                     await storageAdapter.remove(STORAGE_KEYS.AUTH_STATE)
                     cleanOAuthParams()
 
-                    fetchToken(code).catch((error) => {
+                    fetchToken(code, false).catch((error) => {
                         log('Error fetching token:', error)
                     })
                 } else {
                     const refreshToken = await storageAdapter.get(STORAGE_KEYS.REFRESH_TOKEN)
                     if (refreshToken) {
                         log('Found refresh token in storage, attempting to refresh access token')
-                        fetchToken(refreshToken).catch((error) => {
+                        fetchToken(refreshToken, true).catch((error) => {
                             log('Error fetching refresh token:', error)
                         })
                     } else {
@@ -356,7 +356,7 @@ export function BasicProvider({
             if (isExpired) {
                 log('token is expired - refreshing ...')
                 try {
-                    const newToken = await fetchToken(token?.refresh_token || '')
+                    const newToken = await fetchToken(token?.refresh_token || '', true)
                     fetchUser(newToken?.access_token || '')
                 } catch (error) {
                     log('Failed to refresh token in checkToken:', error)
@@ -464,7 +464,7 @@ export function BasicProvider({
             await storageAdapter.remove(STORAGE_KEYS.AUTH_STATE)
             cleanOAuthParams()
 
-            const token = await fetchToken(code)
+            const token = await fetchToken(code, false)
 
             if (token) {
                 log('signinWithCode successful')
@@ -515,7 +515,7 @@ export function BasicProvider({
             if (refreshToken) {
                 log('No token in memory, attempting to refresh from storage')
                 try {
-                    const newToken = await fetchToken(refreshToken)
+                    const newToken = await fetchToken(refreshToken, true)
                     if (newToken?.access_token) {
                         return newToken.access_token
                     }
@@ -546,7 +546,7 @@ export function BasicProvider({
             const refreshToken = token?.refresh_token || await storageAdapter.get(STORAGE_KEYS.REFRESH_TOKEN)
             if (refreshToken) {
                 try {
-                    const newToken = await fetchToken(refreshToken)
+                    const newToken = await fetchToken(refreshToken, true)
                     return newToken?.access_token || ''
                 } catch (error) {
                     log('Failed to refresh expired token:', error)
@@ -566,7 +566,7 @@ export function BasicProvider({
         return token?.access_token || ''
     }
 
-    const fetchToken = async (code: string) => {
+    const fetchToken = async (codeOrRefreshToken: string, isRefreshToken: boolean = false) => {
         try {
             if (!isOnline) {
                 log('Network is offline, marking refresh as pending')
@@ -574,12 +574,22 @@ export function BasicProvider({
                 throw new Error('Network offline - refresh will be retried when online')
             }
 
+            const requestBody = isRefreshToken 
+                ? { 
+                    grant_type: 'refresh_token',
+                    refresh_token: codeOrRefreshToken 
+                }
+                : { 
+                    grant_type: 'authorization_code',
+                    code: codeOrRefreshToken 
+                }
+
             const token = await fetch('https://api.basic.tech/auth/token', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ code: code })
+                body: JSON.stringify(requestBody)
             })
                 .then(response => response.json())
                 .catch(error => {
