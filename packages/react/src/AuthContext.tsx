@@ -18,6 +18,15 @@ export type AuthConfig = {
     server_url?: string;
 }
 
+export type BasicProviderProps = {
+    children: React.ReactNode;
+    project_id?: string;
+    schema?: any;
+    debug?: boolean;
+    storage?: BasicStorage;
+    auth?: AuthConfig;
+}
+
 const DEFAULT_AUTH_CONFIG: Required<AuthConfig> = {
     scopes: 'profile email app:admin',
     server_url: 'https://api.basic.tech'
@@ -102,14 +111,7 @@ export function BasicProvider({
     debug = false,
     storage,
     auth
-}: {
-    children: React.ReactNode,
-    project_id?: string,
-    schema?: any,
-    debug?: boolean,
-    storage?: BasicStorage,
-    auth?: AuthConfig
-}) {
+}: BasicProviderProps) {
     const [isAuthReady, setIsAuthReady] = useState(false)
     const [isSignedIn, setIsSignedIn] = useState<boolean>(false)
     const [token, setToken] = useState<Token | null>(null)

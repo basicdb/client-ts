@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useBasic, BasicProvider, BasicStorage, LocalStorageAdapter, AuthConfig } from "./AuthContext";
+import { useBasic, BasicProvider, BasicStorage, LocalStorageAdapter, AuthConfig, BasicProviderProps } from "./AuthContext";
 import { useLiveQuery as useQuery } from "dexie-react-hooks";
 // import { createVersionUpdater, VersionUpdater, Migration } from "./versionUpdater";
 
@@ -9,9 +9,5 @@ export {
 }
 
 export type {
-    AuthConfig, BasicStorage, LocalStorageAdapter
+    AuthConfig, BasicStorage, LocalStorageAdapter, BasicProviderProps
 }
-
-// export type {
-//     VersionUpdater, Migration
-// }
