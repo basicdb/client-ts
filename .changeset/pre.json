@@ -15,7 +15,9 @@
     "@repo/ui": "0.0.0"
   },
   "changesets": [
+    "old-pumas-sing",
     "shiny-icons-leave",
-    "shy-monkeys-scream"
+    "shy-monkeys-scream",
+    "silly-lemons-explode"
   ]
 }

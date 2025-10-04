@@ -1,5 +1,21 @@
 # @basictech/nextjs
 
+## 0.6.0-beta.3
+
+### Patch Changes
+
+- add oauth settings
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.3
+
+## 0.6.0-beta.2
+
+### Patch Changes
+
+- update token endpoint
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.2
+
 ## 0.6.0-beta.1
 
 ### Minor Changes

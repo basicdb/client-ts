@@ -1,5 +1,17 @@
 # 1.3.4
 
+## 0.7.0-beta.3
+
+### Patch Changes
+
+- add oauth settings
+
+## 0.7.0-beta.2
+
+### Patch Changes
+
+- update token endpoint
+
 ## 0.7.0-beta.1
 
 ### Minor Changes

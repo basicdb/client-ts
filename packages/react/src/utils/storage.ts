@@ -23,6 +23,7 @@ export const STORAGE_KEYS = {
     REFRESH_TOKEN: 'basic_refresh_token',
     USER_INFO: 'basic_user_info',
     AUTH_STATE: 'basic_auth_state',
+    REDIRECT_URI: 'basic_redirect_uri',
     DEBUG: 'basic_debug'
 } as const
 

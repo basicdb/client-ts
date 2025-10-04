@@ -13,6 +13,16 @@ import { getSchemaStatus, validateAndCheckSchema } from './utils/schema'
 
 export type { BasicStorage, LocalStorageAdapter } from './utils/storage'
 
+export type AuthConfig = {
+    scopes?: string | string[];
+    server_url?: string;
+}
+
+const DEFAULT_AUTH_CONFIG: Required<AuthConfig> = {
+    scopes: 'profile email app:admin',
+    server_url: 'https://api.basic.tech'
+}
+
 
 type BasicSyncType = {
     basic_schema: any;
@@ -90,13 +100,15 @@ export function BasicProvider({
     project_id,
     schema,
     debug = false,
-    storage
+    storage,
+    auth
 }: {
     children: React.ReactNode,
     project_id?: string,
     schema?: any,
     debug?: boolean,
-    storage?: BasicStorage
+    storage?: BasicStorage,
+    auth?: AuthConfig
 }) {
     const [isAuthReady, setIsAuthReady] = useState(false)
     const [isSignedIn, setIsSignedIn] = useState<boolean>(false)
@@ -112,6 +124,17 @@ export function BasicProvider({
 
     const syncRef = useRef<BasicSync | null>(null);
     const storageAdapter = storage || new LocalStorageAdapter();
+    
+    // Merge auth config with defaults
+    const authConfig: Required<AuthConfig> = {
+        scopes: auth?.scopes || DEFAULT_AUTH_CONFIG.scopes,
+        server_url: auth?.server_url || DEFAULT_AUTH_CONFIG.server_url
+    }
+    
+    // Normalize scopes to space-separated string
+    const scopesString = Array.isArray(authConfig.scopes) 
+        ? authConfig.scopes.join(' ') 
+        : authConfig.scopes;
 
     const isDevMode = () => isDevelopment(debug)
 
@@ -312,7 +335,7 @@ export function BasicProvider({
     useEffect(() => {
         async function fetchUser(acc_token: string) {
             console.info('fetching user')
-            const user = await fetch('https://api.basic.tech/auth/userInfo', {
+            const user = await fetch(`${authConfig.server_url}/auth/userInfo`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${acc_token}`
@@ -395,14 +418,18 @@ export function BasicProvider({
                 throw new Error('Invalid redirect URI provided')
             }
 
-            let baseUrl = "https://api.basic.tech/auth/authorize"
+            // Store redirect_uri for token exchange
+            await storageAdapter.set(STORAGE_KEYS.REDIRECT_URI, redirectUrl)
+            log('Stored redirect_uri for token exchange:', redirectUrl)
+
+            let baseUrl = `${authConfig.server_url}/auth/authorize`
             baseUrl += `?client_id=${project_id}`
             baseUrl += `&redirect_uri=${encodeURIComponent(redirectUrl)}`
             baseUrl += `&response_type=code`
-            baseUrl += `&scope=profile`
+            baseUrl += `&scope=${encodeURIComponent(scopesString)}`
             baseUrl += `&state=${randomState}`
 
-            log('Generated sign-in link successfully')
+            log('Generated sign-in link successfully with scopes:', scopesString)
             return baseUrl;
 
         } catch (error) {
@@ -492,6 +519,7 @@ export function BasicProvider({
         await storageAdapter.remove(STORAGE_KEYS.AUTH_STATE)
         await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
         await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
+        await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
         if (syncRef.current) {
             (async () => {
                 try {
@@ -574,17 +602,43 @@ export function BasicProvider({
                 throw new Error('Network offline - refresh will be retried when online')
             }
 
-            const requestBody = isRefreshToken 
-                ? { 
-                    grant_type: 'refresh_token',
-                    refresh_token: codeOrRefreshToken 
-                }
-                : { 
-                    grant_type: 'authorization_code',
-                    code: codeOrRefreshToken 
-                }
+            let requestBody: any
 
-            const token = await fetch('https://api.basic.tech/auth/token', {
+            if (isRefreshToken) {
+                // Refresh token request
+                requestBody = { 
+                    grant_type: 'refresh_token',
+                    refresh_token: codeOrRefreshToken
+                }
+                // Include client_id if available for validation
+                if (project_id) {
+                    requestBody.client_id = project_id
+                }
+            } else {
+                // Authorization code exchange
+                requestBody = { 
+                    grant_type: 'authorization_code',
+                    code: codeOrRefreshToken
+                }
+                
+                // Retrieve stored redirect_uri (required by OAuth2 spec)
+                const storedRedirectUri = await storageAdapter.get(STORAGE_KEYS.REDIRECT_URI)
+                if (storedRedirectUri) {
+                    requestBody.redirect_uri = storedRedirectUri
+                    log('Including redirect_uri in token exchange:', storedRedirectUri)
+                } else {
+                    log('Warning: No redirect_uri found in storage for token exchange')
+                }
+                
+                // Include client_id for validation
+                if (project_id) {
+                    requestBody.client_id = project_id
+                }
+            }
+
+            log('Token exchange request body:', { ...requestBody, refresh_token: isRefreshToken ? '[REDACTED]' : undefined, code: !isRefreshToken ? '[REDACTED]' : undefined })
+
+            const token = await fetch(`${authConfig.server_url}/auth/token`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -611,6 +665,7 @@ export function BasicProvider({
 
                 await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
                 await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
+                await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
                 clearCookie('basic_token');
                 clearCookie('basic_access_token');
 
@@ -629,6 +684,12 @@ export function BasicProvider({
                     log('Updated refresh token in storage')
                 }
 
+                // Clean up redirect_uri after successful token exchange
+                if (!isRefreshToken) {
+                    await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
+                    log('Cleaned up redirect_uri from storage after successful exchange')
+                }
+
                 setCookie('basic_access_token', token.access_token, { httpOnly: false });
                 log('Updated access token in cookie')
             }
@@ -639,6 +700,7 @@ export function BasicProvider({
             if (!(error as Error).message.includes('offline') && !(error as Error).message.includes('Network')) {
                 await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
                 await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
+                await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
                 clearCookie('basic_token');
                 clearCookie('basic_access_token');
 
