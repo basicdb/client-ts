@@ -1,5 +1,13 @@
 # @basictech/nextjs
 
+## 0.6.0-beta.6
+
+### Patch Changes
+
+- refresh token patch
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.6
+
 ## 0.6.0-beta.5
 
 ### Patch Changes
