@@ -413,8 +413,14 @@ export function BasicProvider({
 
             if (isExpired) {
                 log('token is expired - refreshing ...')
+                const refreshToken = token?.refresh_token
+                if (!refreshToken) {
+                    log('Error: No refresh token available for expired token')
+                    setIsAuthReady(true)
+                    return
+                }
                 try {
-                    const newToken = await fetchToken(token?.refresh_token || '', true)
+                    const newToken = await fetchToken(refreshToken, true)
                     fetchUser(newToken?.access_token || '')
                 } catch (error) {
                     log('Failed to refresh token in checkToken:', error)
@@ -670,6 +676,13 @@ export function BasicProvider({
     }
 
     const fetchToken = async (codeOrRefreshToken: string, isRefreshToken: boolean = false): Promise<Token | null> => {
+        // Validate input
+        if (!codeOrRefreshToken || codeOrRefreshToken.trim() === '') {
+            const errorMsg = isRefreshToken ? 'Refresh token is empty or undefined' : 'Authorization code is empty or undefined'
+            log('Error:', errorMsg)
+            throw new Error(errorMsg)
+        }
+
         // If this is a refresh token request and one is already in progress, return that promise
         if (isRefreshToken && refreshPromiseRef.current) {
             log('Reusing in-flight refresh token request')
