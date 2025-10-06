@@ -1,5 +1,14 @@
 # nextjs
 
+## 0.3.0-beta.5
+
+### Patch Changes
+
+- config server url & token patch
+- Updated dependencies
+  - @basictech/nextjs@0.6.0-beta.5
+  - @basictech/react@0.7.0-beta.5
+
 ## 0.3.0-beta.4
 
 ### Patch Changes
