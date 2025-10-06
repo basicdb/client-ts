@@ -33,6 +33,7 @@ createRoot(document.getElementById('root')!).render(
     project_id="edf4539a-e2e6-403c-8dec-7267565ce46d"  
     schema={basic_schema}  
     debug
+    // auth={{ server_url: "http://localhost:3003", scopes: ['profile', 'email'], ws_url: "x" }}
     >
       <App />
     </BasicProvider>

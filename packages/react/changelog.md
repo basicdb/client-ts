@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.7.0-beta.4
+
+### Patch Changes
+
+- fix: provider props
+
 ## 0.7.0-beta.3
 
 ### Patch Changes

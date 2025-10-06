@@ -24,6 +24,7 @@ export const STORAGE_KEYS = {
     USER_INFO: 'basic_user_info',
     AUTH_STATE: 'basic_auth_state',
     REDIRECT_URI: 'basic_redirect_uri',
+    SERVER_URL: 'basic_server_url',
     DEBUG: 'basic_debug'
 } as const
 

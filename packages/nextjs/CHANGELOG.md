@@ -1,5 +1,13 @@
 # @basictech/nextjs
 
+## 0.6.0-beta.4
+
+### Patch Changes
+
+- fix: provider props
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.4
+
 ## 0.6.0-beta.3
 
 ### Patch Changes

@@ -16,6 +16,7 @@ export type { BasicStorage, LocalStorageAdapter } from './utils/storage'
 export type AuthConfig = {
     scopes?: string | string[];
     server_url?: string;
+    ws_url?: string;
 }
 
 export type BasicProviderProps = {
@@ -27,15 +28,16 @@ export type BasicProviderProps = {
     auth?: AuthConfig;
 }
 
-const DEFAULT_AUTH_CONFIG: Required<AuthConfig> = {
-    scopes: 'profile email app:admin',
-    server_url: 'https://api.basic.tech'
-}
+const DEFAULT_AUTH_CONFIG = {
+    scopes: 'profile,email,app:admin',
+    server_url: 'https://api.basic.tech',
+    ws_url: 'wss://pds.basic.id/ws'
+} as const
 
 
 type BasicSyncType = {
     basic_schema: any;
-    connect: (options: { access_token: string }) => void;
+    connect: (options: { access_token: string; ws_url?: string }) => void;
     debugeroo: () => void;
     collection: (name: string) => {
         ref: {
@@ -128,15 +130,19 @@ export function BasicProvider({
     const storageAdapter = storage || new LocalStorageAdapter();
     
     // Merge auth config with defaults
-    const authConfig: Required<AuthConfig> = {
+    const authConfig = {
         scopes: auth?.scopes || DEFAULT_AUTH_CONFIG.scopes,
-        server_url: auth?.server_url || DEFAULT_AUTH_CONFIG.server_url
+        server_url: auth?.server_url || DEFAULT_AUTH_CONFIG.server_url,
+        ws_url: auth?.ws_url || DEFAULT_AUTH_CONFIG.ws_url
     }
     
     // Normalize scopes to space-separated string
     const scopesString = Array.isArray(authConfig.scopes) 
         ? authConfig.scopes.join(' ') 
         : authConfig.scopes;
+
+    // Token refresh mutex to prevent concurrent refreshes
+    const refreshPromiseRef = useRef<Promise<Token | null> | null>(null);
 
     const isDevMode = () => isDevelopment(debug)
 
@@ -245,7 +251,10 @@ export function BasicProvider({
 
                 log('connecting to db...')
 
-                syncRef.current?.connect({ access_token: tok })
+                syncRef.current?.connect({ 
+                    access_token: tok,
+                    ws_url: authConfig.ws_url 
+                })
                     .catch((e) => {
                         log('error connecting to db', e)
                     })
@@ -258,6 +267,19 @@ export function BasicProvider({
     useEffect(() => {
         const initializeAuth = async () => {
             await storageAdapter.set(STORAGE_KEYS.DEBUG, debug ? 'true' : 'false')
+
+            // Check if server URL has changed - if so, clear tokens
+            const storedServerUrl = await storageAdapter.get(STORAGE_KEYS.SERVER_URL)
+            if (storedServerUrl && storedServerUrl !== authConfig.server_url) {
+                log('Server URL changed, clearing stored tokens')
+                await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
+                await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
+                await storageAdapter.remove(STORAGE_KEYS.AUTH_STATE)
+                await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
+                clearCookie('basic_token')
+                clearCookie('basic_access_token')
+            }
+            await storageAdapter.set(STORAGE_KEYS.SERVER_URL, authConfig.server_url)
 
             try {
                 const versionUpdater = createVersionUpdater(storageAdapter, currentVersion, getMigrations())
@@ -337,19 +359,25 @@ export function BasicProvider({
     useEffect(() => {
         async function fetchUser(acc_token: string) {
             console.info('fetching user')
-            const user = await fetch(`${authConfig.server_url}/auth/userInfo`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${acc_token}`
-                }
-            })
-                .then(response => response.json())
-                .catch(error => log('Error:', error))
+            try {
+                const response = await fetch(`${authConfig.server_url}/auth/userInfo`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${acc_token}`
+                    }
+                })
 
-            if (user.error) {
-                log('error fetching user', user.error)
-                return
-            } else {
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch user info: ${response.status}`)
+                }
+
+                const user = await response.json()
+
+                if (user.error) {
+                    log('error fetching user', user.error)
+                    throw new Error(`User info error: ${user.error}`)
+                }
+
                 if (token?.refresh_token) {
                     await storageAdapter.set(STORAGE_KEYS.REFRESH_TOKEN, token.refresh_token)
                 }
@@ -362,7 +390,10 @@ export function BasicProvider({
 
                 setUser(user)
                 setIsSignedIn(true)
-
+                setIsAuthReady(true)
+            } catch (error) {
+                log('Failed to fetch user info:', error)
+                // Don't clear tokens here - may be temporary network issue
                 setIsAuthReady(true)
             }
         }
@@ -376,7 +407,9 @@ export function BasicProvider({
             }
 
             const decoded = jwtDecode(token?.access_token)
-            const isExpired = decoded.exp && decoded.exp < Date.now() / 1000
+            // Add 5 second buffer to prevent edge cases
+            const expirationBuffer = 5
+            const isExpired = decoded.exp && decoded.exp < (Date.now() / 1000) + expirationBuffer
 
             if (isExpired) {
                 log('token is expired - refreshing ...')
@@ -452,7 +485,10 @@ export function BasicProvider({
             const signInLink = await getSignInLink()
             log('Generated sign-in link:', signInLink)
 
-            if (!signInLink || !signInLink.startsWith('https://')) {
+            // Validate URL format (supports https://, http://, and custom URI schemes)
+            try {
+                new URL(signInLink)
+            } catch {
                 log('Error: Invalid sign-in link generated')
                 throw new Error('Failed to generate valid sign-in URL')
             }
@@ -522,6 +558,7 @@ export function BasicProvider({
         await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
         await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
         await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
+        await storageAdapter.remove(STORAGE_KEYS.SERVER_URL)
         if (syncRef.current) {
             (async () => {
                 try {
@@ -544,6 +581,21 @@ export function BasicProvider({
             const refreshToken = await storageAdapter.get(STORAGE_KEYS.REFRESH_TOKEN)
             if (refreshToken) {
                 log('No token in memory, attempting to refresh from storage')
+                
+                // Check if refresh is already in progress
+                if (refreshPromiseRef.current) {
+                    log('Token refresh already in progress, waiting...')
+                    try {
+                        const newToken = await refreshPromiseRef.current
+                        if (newToken?.access_token) {
+                            return newToken.access_token
+                        }
+                    } catch (error) {
+                        log('In-flight refresh failed:', error)
+                        throw error
+                    }
+                }
+                
                 try {
                     const newToken = await fetchToken(refreshToken, true)
                     if (newToken?.access_token) {
@@ -569,10 +621,31 @@ export function BasicProvider({
         }
 
         const decoded = jwtDecode(token?.access_token)
-        const isExpired = decoded.exp && decoded.exp < Date.now() / 1000
+        // Add 5 second buffer to prevent edge cases where token expires during request
+        const expirationBuffer = 5
+        const isExpired = decoded.exp && decoded.exp < (Date.now() / 1000) + expirationBuffer
 
         if (isExpired) {
             log('token is expired - refreshing ...')
+            
+            // Check if refresh is already in progress
+            if (refreshPromiseRef.current) {
+                log('Token refresh already in progress, waiting...')
+                try {
+                    const newToken = await refreshPromiseRef.current
+                    return newToken?.access_token || ''
+                } catch (error) {
+                    log('In-flight refresh failed:', error)
+                    
+                    if ((error as Error).message.includes('offline') || (error as Error).message.includes('Network')) {
+                        log('Network issue - using expired token until network is restored')
+                        return token.access_token
+                    }
+                    
+                    throw error
+                }
+            }
+            
             const refreshToken = token?.refresh_token || await storageAdapter.get(STORAGE_KEYS.REFRESH_TOKEN)
             if (refreshToken) {
                 try {
@@ -596,124 +669,151 @@ export function BasicProvider({
         return token?.access_token || ''
     }
 
-    const fetchToken = async (codeOrRefreshToken: string, isRefreshToken: boolean = false) => {
-        try {
-            if (!isOnline) {
-                log('Network is offline, marking refresh as pending')
-                setPendingRefresh(true)
-                throw new Error('Network offline - refresh will be retried when online')
-            }
-
-            let requestBody: any
-
-            if (isRefreshToken) {
-                // Refresh token request
-                requestBody = { 
-                    grant_type: 'refresh_token',
-                    refresh_token: codeOrRefreshToken
-                }
-                // Include client_id if available for validation
-                if (project_id) {
-                    requestBody.client_id = project_id
-                }
-            } else {
-                // Authorization code exchange
-                requestBody = { 
-                    grant_type: 'authorization_code',
-                    code: codeOrRefreshToken
-                }
-                
-                // Retrieve stored redirect_uri (required by OAuth2 spec)
-                const storedRedirectUri = await storageAdapter.get(STORAGE_KEYS.REDIRECT_URI)
-                if (storedRedirectUri) {
-                    requestBody.redirect_uri = storedRedirectUri
-                    log('Including redirect_uri in token exchange:', storedRedirectUri)
-                } else {
-                    log('Warning: No redirect_uri found in storage for token exchange')
-                }
-                
-                // Include client_id for validation
-                if (project_id) {
-                    requestBody.client_id = project_id
-                }
-            }
-
-            log('Token exchange request body:', { ...requestBody, refresh_token: isRefreshToken ? '[REDACTED]' : undefined, code: !isRefreshToken ? '[REDACTED]' : undefined })
-
-            const token = await fetch(`${authConfig.server_url}/auth/token`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody)
-            })
-                .then(response => response.json())
-                .catch(error => {
-                    log('Network error fetching token:', error)
-                    if (!isOnline) {
-                        setPendingRefresh(true)
-                        throw new Error('Network offline - refresh will be retried when online')
-                    }
-                    throw new Error('Network error during token refresh')
-                })
-
-            if (token.error) {
-                log('error fetching token', token.error)
-
-                if (token.error.includes('network') || token.error.includes('timeout')) {
-                    setPendingRefresh(true)
-                    throw new Error('Network issue - refresh will be retried when online')
-                }
-
-                await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
-                await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
-                await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
-                clearCookie('basic_token');
-                clearCookie('basic_access_token');
-
-                setUser({})
-                setIsSignedIn(false)
-                setToken(null)
-                setIsAuthReady(true)
-
-                throw new Error(`Token refresh failed: ${token.error}`)
-            } else {
-                setToken(token)
-                setPendingRefresh(false)
-
-                if (token.refresh_token) {
-                    await storageAdapter.set(STORAGE_KEYS.REFRESH_TOKEN, token.refresh_token)
-                    log('Updated refresh token in storage')
-                }
-
-                // Clean up redirect_uri after successful token exchange
-                if (!isRefreshToken) {
-                    await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
-                    log('Cleaned up redirect_uri from storage after successful exchange')
-                }
-
-                setCookie('basic_access_token', token.access_token, { httpOnly: false });
-                log('Updated access token in cookie')
-            }
-            return token
-        } catch (error) {
-            log('Token refresh error:', error)
-
-            if (!(error as Error).message.includes('offline') && !(error as Error).message.includes('Network')) {
-                await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
-                await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
-                await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
-                clearCookie('basic_token');
-                clearCookie('basic_access_token');
-
-                setUser({})
-                setIsSignedIn(false)
-                setToken(null)
-                setIsAuthReady(true)
-            }
-
-            throw error
+    const fetchToken = async (codeOrRefreshToken: string, isRefreshToken: boolean = false): Promise<Token | null> => {
+        // If this is a refresh token request and one is already in progress, return that promise
+        if (isRefreshToken && refreshPromiseRef.current) {
+            log('Reusing in-flight refresh token request')
+            return refreshPromiseRef.current
         }
+
+        // Create new promise for this refresh attempt
+        const refreshPromise = (async (): Promise<Token | null> => {
+            try {
+                if (!isOnline) {
+                    log('Network is offline, marking refresh as pending')
+                    setPendingRefresh(true)
+                    throw new Error('Network offline - refresh will be retried when online')
+                }
+
+                let requestBody: any
+
+                if (isRefreshToken) {
+                    // Refresh token request
+                    requestBody = { 
+                        grant_type: 'refresh_token',
+                        refresh_token: codeOrRefreshToken
+                    }
+                    // Include client_id if available for validation
+                    if (project_id) {
+                        requestBody.client_id = project_id
+                    }
+                } else {
+                    // Authorization code exchange
+                    requestBody = { 
+                        grant_type: 'authorization_code',
+                        code: codeOrRefreshToken
+                    }
+                    
+                    // Retrieve stored redirect_uri (required by OAuth2 spec)
+                    const storedRedirectUri = await storageAdapter.get(STORAGE_KEYS.REDIRECT_URI)
+                    if (storedRedirectUri) {
+                        requestBody.redirect_uri = storedRedirectUri
+                        log('Including redirect_uri in token exchange:', storedRedirectUri)
+                    } else {
+                        log('Warning: No redirect_uri found in storage for token exchange')
+                    }
+                    
+                    // Include client_id for validation
+                    if (project_id) {
+                        requestBody.client_id = project_id
+                    }
+                }
+
+                log('Token exchange request body:', { ...requestBody, refresh_token: isRefreshToken ? '[REDACTED]' : undefined, code: !isRefreshToken ? '[REDACTED]' : undefined })
+
+                const token = await fetch(`${authConfig.server_url}/auth/token`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                })
+                    .then(response => response.json())
+                    .catch(error => {
+                        log('Network error fetching token:', error)
+                        if (!isOnline) {
+                            setPendingRefresh(true)
+                            throw new Error('Network offline - refresh will be retried when online')
+                        }
+                        throw new Error('Network error during token refresh')
+                    })
+
+                if (token.error) {
+                    log('error fetching token', token.error)
+
+                    if (token.error.includes('network') || token.error.includes('timeout')) {
+                        setPendingRefresh(true)
+                        throw new Error('Network issue - refresh will be retried when online')
+                    }
+
+                    await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
+                    await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
+                    await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
+                    await storageAdapter.remove(STORAGE_KEYS.SERVER_URL)
+                    clearCookie('basic_token');
+                    clearCookie('basic_access_token');
+
+                    setUser({})
+                    setIsSignedIn(false)
+                    setToken(null)
+                    setIsAuthReady(true)
+
+                    throw new Error(`Token refresh failed: ${token.error}`)
+                } else {
+                    setToken(token)
+                    setPendingRefresh(false)
+
+                    if (token.refresh_token) {
+                        await storageAdapter.set(STORAGE_KEYS.REFRESH_TOKEN, token.refresh_token)
+                        log('Updated refresh token in storage')
+                    }
+
+                    // Clean up redirect_uri after successful token exchange
+                    if (!isRefreshToken) {
+                        await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
+                        log('Cleaned up redirect_uri from storage after successful exchange')
+                    }
+
+                    setCookie('basic_access_token', token.access_token, { httpOnly: false });
+                    setCookie('basic_token', JSON.stringify(token));
+                    log('Updated access token and full token in cookies')
+                }
+                return token
+            } catch (error) {
+                log('Token refresh error:', error)
+
+                if (!(error as Error).message.includes('offline') && !(error as Error).message.includes('Network')) {
+                    await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
+                    await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
+                    await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
+                    await storageAdapter.remove(STORAGE_KEYS.SERVER_URL)
+                    clearCookie('basic_token');
+                    clearCookie('basic_access_token');
+
+                    setUser({})
+                    setIsSignedIn(false)
+                    setToken(null)
+                    setIsAuthReady(true)
+                }
+
+                throw error
+            }
+        })()
+
+        // Store promise if this is a refresh token request
+        if (isRefreshToken) {
+            refreshPromiseRef.current = refreshPromise
+            
+            // Clear the promise reference when done (success or failure)
+            refreshPromise.finally(() => {
+                if (refreshPromiseRef.current === refreshPromise) {
+                    refreshPromiseRef.current = null
+                    log('Cleared refresh promise reference')
+                }
+            })
+        }
+
+        return refreshPromise
     }
 
     const noDb = ({

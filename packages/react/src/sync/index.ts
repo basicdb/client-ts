@@ -56,8 +56,8 @@ export class BasicSync extends Dexie {
 
   }
 
-  async connect({ access_token }: { access_token: string }) {
-    const WS_URL = `wss://pds.basic.id/ws`
+  async connect({ access_token, ws_url }: { access_token: string, ws_url?: string }) {
+    const WS_URL = ws_url || 'wss://pds.basic.id/ws'
 
     log('Connecting to', WS_URL)
 
@@ -67,8 +67,8 @@ export class BasicSync extends Dexie {
     return this.syncable.connect("websocket", WS_URL, { authToken: access_token, schema: this.basic_schema });
   }
 
-  async disconnect() {
-    const WS_URL = `wss://pds.basic.id/ws`
+  async disconnect({ ws_url }: { ws_url?: string } = {}) {
+    const WS_URL = ws_url || 'wss://pds.basic.id/ws'
 
     return this.syncable.disconnect(WS_URL) 
   }
