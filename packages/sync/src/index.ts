@@ -1,9 +1,33 @@
+/**
+ * @deprecated This package is deprecated. Use @basictech/react instead.
+ * The sync functionality has been moved to the react package with improvements:
+ * - Data validation against schema
+ * - Configurable WebSocket URLs
+ * - Better integration with auth flow
+ * 
+ * Migration:
+ * ```typescript
+ * // Old
+ * import { BasicSync } from '@repo/sync'
+ * 
+ * // New - use the db from useBasic hook
+ * import { useBasic } from '@basictech/react'
+ * const { db } = useBasic()
+ * ```
+ */
+
 import { v7 as uuidv7 } from 'uuid';
 import { Dexie, PromiseExtended } from 'dexie';
 import 'dexie-observable';
 import 'dexie-syncable';
 
 import { syncProtocol } from './syncProtocol'
+
+// Log deprecation warning
+console.warn(
+  '[@repo/sync] This package is deprecated. Use @basictech/react instead. ' +
+  'See README.md for migration instructions.'
+)
 
 syncProtocol()
 

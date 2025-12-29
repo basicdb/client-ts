@@ -32,7 +32,7 @@ const LoginButton = () => {
 };
 
 // Basic styles
-const avatarContainerStyle = {
+const avatarContainerStyle: React.CSSProperties = {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -43,14 +43,14 @@ const avatarContainerStyle = {
   cursor: 'pointer',
 };
 
-const avatarImageStyle = {
+const avatarImageStyle: React.CSSProperties = {
   width: '100%',
   height: '100%',
   borderRadius: '100%',
-//   objectFit: 'cover',
+  objectFit: 'cover',
 };
 
-const avatarFallbackStyle = {
+const avatarFallbackStyle: React.CSSProperties = {
   width: '100%',
   height: '100%',
   borderRadius: '100%',
@@ -62,14 +62,14 @@ const avatarFallbackStyle = {
   fontSize: '20px',
 };
 
-const popoverContentStyle = {
+const popoverContentStyle: React.CSSProperties = {
   padding: '20px',
   borderRadius: '8px',
-//   backgroundColor: 'white',
+  backgroundColor: 'white',
   boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
 };
 
-const buttonStyle = {
+const buttonStyle: React.CSSProperties = {
   padding: '8px 16px',
   backgroundColor: '#007bff',
   color: '#fff',
@@ -78,7 +78,7 @@ const buttonStyle = {
   cursor: 'pointer',
 };
 
-const popoverArrowStyle = {
+const popoverArrowStyle: React.CSSProperties = {
   fill: 'white',
 };
 

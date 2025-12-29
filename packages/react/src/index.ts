@@ -1,38 +1,29 @@
-import { useState } from "react";
 import { useBasic, BasicProvider } from "./AuthContext";
 import { useLiveQuery as useQuery } from "dexie-react-hooks";
 
-// const useQuery = (queryable: any) => {
-//     const [loading, setLoading] = useState(true)
-//     const [error, setError] = useState<Error | null>(null)
+// Re-export from AuthContext
+export { useBasic, BasicProvider, useQuery }
 
-//     const result = useLiveQuery(async () => {
-//         try {
-//             setLoading(true)
-//             setError(null)
-            
-//             // if (typeof queryable === 'function') {
-//             //     return await queryable()
-//             // }
-//             return queryable
-            
-//         } catch (err) {
-//             setError(err instanceof Error ? err : new Error('Unknown error'))
-//             return undefined
-//         } finally {
-//             setLoading(false)
-//         }
-//     }, [queryable])
+// Type exports
+export type { 
+    AuthConfig, 
+    BasicStorage, 
+    LocalStorageAdapter, 
+    BasicProviderProps,
+    BasicContextType,
+    AuthResult
+} from "./AuthContext"
 
-//     return {
-//         data: result,
-//         loading,
-//         error
-//     }
-// }
+// Core DB exports
+export type { 
+    DBMode, 
+    BasicDB, 
+    Collection, 
+    RemoteDBConfig,
+    AuthError
+} from "./core/db"
 
+export { RemoteDB, RemoteCollection, RemoteDBError, NotAuthenticatedError } from "./core/db"
 
-
-export {
-    useBasic, BasicProvider, useQuery
-}
+// Storage utilities
+export { STORAGE_KEYS } from "./utils/storage"

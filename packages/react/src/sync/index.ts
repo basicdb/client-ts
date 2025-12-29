@@ -1,28 +1,55 @@
 "use client"
 
 import { v7 as uuidv7 } from 'uuid';
-import { Dexie, PromiseExtended } from 'dexie';
-import 'dexie-syncable';
-import 'dexie-observable';
+import { Dexie } from 'dexie';
 
-import { syncProtocol } from './syncProtocol'
-import {  log } from '../config'
-
+import { log } from '../config'
 import { validateSchema, validateData } from '@basictech/schema'
-syncProtocol()
 
+// Track initialization state
+let dexieExtensionsLoaded = false;
+let initPromise: Promise<void> | null = null;
 
-// const DexieSyncStatus = {
-//   "-1": "ERROR",
-//   "0": "OFFLINE",
-//   "1": "CONNECTING",
-//   "2": "ONLINE",
-//   "3": "SYNCING",
-//   "4": "ERROR_WILL_RETRY"
-// }
+/**
+ * Initialize Dexie extensions (syncable and observable)
+ * This must be called before creating a BasicSync instance
+ * Safe to call multiple times - will only load once
+ */
+export async function initDexieExtensions(): Promise<void> {
+  // Return early if already loaded or not in browser
+  if (dexieExtensionsLoaded) return;
+  if (typeof window === 'undefined') return;
+  
+  // If already initializing, wait for that promise
+  if (initPromise) return initPromise;
+  
+  initPromise = (async () => {
+    try {
+      // Dynamic imports - only loaded in browser
+      await import('dexie-syncable');
+      await import('dexie-observable');
+      
+      // Import and register sync protocol
+      const { syncProtocol } = await import('./syncProtocol');
+      syncProtocol();
+      
+      dexieExtensionsLoaded = true;
+      log('Dexie extensions loaded successfully');
+    } catch (error) {
+      console.error('Failed to load Dexie extensions:', error);
+      throw error;
+    }
+  })();
+  
+  return initPromise;
+}
 
-
-// const SERVER_URL = "https://pds.basic.id"
+/**
+ * Check if Dexie extensions are loaded
+ */
+export function isDexieReady(): boolean {
+  return dexieExtensionsLoaded;
+}
 
 
 export class BasicSync extends Dexie {
@@ -56,8 +83,8 @@ export class BasicSync extends Dexie {
 
   }
 
-  async connect({ access_token }: { access_token: string }) {
-    const WS_URL = `wss://pds.basic.id/ws`
+  async connect({ access_token, ws_url }: { access_token: string, ws_url?: string }) {
+    const WS_URL = ws_url || 'wss://pds.basic.id/ws'
 
     log('Connecting to', WS_URL)
 
@@ -67,8 +94,8 @@ export class BasicSync extends Dexie {
     return this.syncable.connect("websocket", WS_URL, { authToken: access_token, schema: this.basic_schema });
   }
 
-  async disconnect() {
-    const WS_URL = `wss://pds.basic.id/ws`
+  async disconnect({ ws_url }: { ws_url?: string } = {}) {
+    const WS_URL = ws_url || 'wss://pds.basic.id/ws'
 
     return this.syncable.disconnect(WS_URL) 
   }
@@ -141,83 +168,135 @@ export class BasicSync extends Dexie {
     return this.syncable
   }
 
-  collection(name: string) {
-    // TODO: check against schema
+  collection<T extends { id: string } = Record<string, any> & { id: string }>(name: string) {
+    // Validate table exists in schema
+    if (this.basic_schema?.tables && !this.basic_schema.tables[name]) {
+      throw new Error(`Table "${name}" not found in schema`)
+    }
+
+    const table = this.table(name)
 
     return {
-
       /**
        * Returns the underlying Dexie table
        * @type {Dexie.Table}
        */
-      ref: this.table(name),
+      ref: table,
 
       // --- WRITE ---- // 
-      add: (data: any) => {
-        // log("Adding data to", name, data)
+
+      /**
+       * Add a new record - returns the full object with generated id
+       */
+      add: async (data: Omit<T, 'id'>): Promise<T> => {
+        const valid = validateData(this.basic_schema, name, data)
+        if (!valid.valid) {
+          log('Invalid data', valid)
+          throw new Error(valid.message || 'Data validation failed')
+        }
+
+        const id = uuidv7()
+        const fullData = { id, ...data } as T
+        
+        await table.add(fullData)
+        return fullData
+      },
+
+      /**
+       * Put (upsert) a record - returns the full object
+       */
+      put: async (data: T): Promise<T> => {
+        if (!data.id) {
+          throw new Error('put() requires an id field')
+        }
 
         const valid = validateData(this.basic_schema, name, data)
         if (!valid.valid) {
           log('Invalid data', valid)
-          return Promise.reject({ ... valid })
+          throw new Error(valid.message || 'Data validation failed')
         }
 
-        return this.table(name).add({
-          id: uuidv7(),
-          ...data
-        })
-
+        await table.put(data)
+        return data
       },
 
-      put: (data: any) => {
-        const valid = validateData(this.basic_schema, name, data)
-        if (!valid.valid) {
-          log('Invalid data', valid)
-          return Promise.reject({ ... valid })
+      /**
+       * Update an existing record - returns updated object or null
+       */
+      update: async (id: string, data: Partial<Omit<T, 'id'>>): Promise<T | null> => {
+        if (!id) {
+          throw new Error('update() requires an id')
         }
 
-        return this.table(name).put({
-          id: uuidv7(),
-          ...data
-        })
-      },
-
-      update: (id: string, data: any) => {
         const valid = validateData(this.basic_schema, name, data, false)
         if (!valid.valid) {
           log('Invalid data', valid)
-          return Promise.reject({ ... valid })
+          throw new Error(valid.message || 'Data validation failed')
         }
 
-        return this.table(name).update(id, data)
+        const updated = await table.update(id, data)
+        if (updated === 0) {
+          return null
+        }
+
+        // Fetch and return the updated record
+        const record = await table.get(id)
+        return (record as T) || null
       },
 
-      delete: (id: string) => {
-        return this.table(name).delete(id)
-      },
+      /**
+       * Delete a record - returns true if deleted, false if not found
+       */
+      delete: async (id: string): Promise<boolean> => {
+        if (!id) {
+          throw new Error('delete() requires an id')
+        }
 
+        // Check if record exists first
+        const exists = await table.get(id)
+        if (!exists) {
+          return false
+        }
+
+        await table.delete(id)
+        return true
+      },
 
       // --- READ ---- // 
 
-      get: async (id: string) => {
-        return this.table(name).get(id) 
+      /**
+       * Get a single record by id - returns null if not found
+       */
+      get: async (id: string): Promise<T | null> => {
+        if (!id) {
+          throw new Error('get() requires an id')
+        }
+
+        const record = await table.get(id)
+        return (record as T) || null
       },
 
-      getAll: async () => {
-        return this.table(name).toArray();
+      /**
+       * Get all records in the collection
+       */
+      getAll: async (): Promise<T[]> => {
+        return table.toArray() as Promise<T[]>
       },
 
       // --- QUERY ---- // 
-      // TODO: lots to do here. simplifing creating querie,  filtering/ordering/limit, and execute
 
-      query: () => this.table(name),
+      /**
+       * Filter records using a predicate function
+       */
+      filter: async (fn: (item: T) => boolean): Promise<T[]> => {
+        return table.filter(fn).toArray() as Promise<T[]>
+      },
 
-      filter: (fn: any) => this.table(name).filter(fn).toArray(),
-
+      /**
+       * Get the raw Dexie table for advanced queries
+       * @deprecated Use ref instead
+       */
+      query: () => table,
     }
   }
-}
-
-class QueryMethod { 
-
 }

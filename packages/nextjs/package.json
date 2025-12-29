@@ -1,6 +1,6 @@
 {
   "name": "@basictech/nextjs",
-  "version": "0.6.0-beta.0",
+  "version": "0.6.0",
   "description": "",
   "private": false,
   "publishConfig": {
@@ -9,6 +9,27 @@
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./src/index.ts"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.mjs",
+      "require": "./dist/client.js",
+      "default": "./src/client.ts"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "client": [
+        "./dist/client.d.ts"
+      ]
+    }
+  },
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -17,7 +38,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@basictech/react": "0.7.0-beta.0",
+    "@basictech/react": "0.7.0",
     "@radix-ui/react-avatar": "^1.1.1",
     "@radix-ui/react-popover": "^1.1.2"
   },
@@ -29,6 +50,6 @@
   },
   "peerDependencies": {
     "react": "^17.0.0 || ^18.0.0 || ^19.0.0",
-    "next": "^14.0.0"
+    "next": "^14.0.0 || ^15.0.0 || ^16.0.0"
   }
 }

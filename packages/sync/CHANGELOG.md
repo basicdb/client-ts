@@ -1,5 +1,18 @@
 # @repo/sync
 
+## 0.2.0
+
+### Minor Changes
+
+- 6a506e9: api improvements, react refactor, nextjs update
+- update apis, add remote db + sync db
+
+## 0.2.0-beta.0
+
+### Minor Changes
+
+- api improvements, react refactor, nextjs update
+
 ## 0.1.0
 
 ### Minor Changes

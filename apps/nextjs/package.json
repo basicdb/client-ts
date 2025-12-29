@@ -1,24 +1,23 @@
 {
   "name": "nextjs",
-  "version": "0.2.2-beta.0",
+  "version": "0.3.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "",
+    "dev": "next dev --turbopack",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
-    "@basictech/nextjs": "0.6.0-beta.0",
-    "@basictech/react": "0.7.0-beta.0",
-    "next": "^14.2.6",
-    "react": "^18",
-    "react-dom": "^18"
+    "@basictech/nextjs": "0.6.0",
+    "next": "^16.1.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20",
-    "@types/react": "^18",
-    "@types/react-dom": "^18",
+    "@types/node": "^22",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
     "typescript": "^5"
   }
 }

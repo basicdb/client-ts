@@ -1,10 +1,94 @@
 # @basictech/nextjs
 
-## 0.6.0-beta.0
+## 0.6.0
 
 ### Minor Changes
 
-- update schema
+- 6a506e9: api improvements, react refactor, nextjs update
+- e45744e: storage adapater update
+- update apis, add remote db + sync db
+
+### Patch Changes
+
+- cdf7123: refresh token patch
+- 7e68aa3: add oauth settings
+- 841839f: fix: provider props
+- 7e68aa3: update token endpoint
+- 4f11b3e: config server url & token patch
+- Updated dependencies [cdf7123]
+- Updated dependencies [7e68aa3]
+- Updated dependencies [6a506e9]
+- Updated dependencies [841839f]
+- Updated dependencies [e45744e]
+- Updated dependencies [e45744e]
+- Updated dependencies [7e68aa3]
+- Updated dependencies
+- Updated dependencies [4f11b3e]
+  - @basictech/react@0.7.0
+
+## 0.6.0-beta.7
+
+### Minor Changes
+
+- api improvements, react refactor, nextjs update
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.7
+
+## 0.6.0-beta.6
+
+### Patch Changes
+
+- refresh token patch
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.6
+
+## 0.6.0-beta.5
+
+### Patch Changes
+
+- config server url & token patch
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.5
+
+## 0.6.0-beta.4
+
+### Patch Changes
+
+- fix: provider props
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.4
+
+## 0.6.0-beta.3
+
+### Patch Changes
+
+- add oauth settings
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.3
+
+## 0.6.0-beta.2
+
+### Patch Changes
+
+- update token endpoint
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.2
+
+## 0.6.0-beta.1
+
+### Minor Changes
+
+- storage adapater update
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.7.0-beta.1
+
+## 0.5.2-beta.0
 
 ### Patch Changes
 
