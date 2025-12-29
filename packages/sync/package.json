@@ -1,6 +1,6 @@
 {
   "name": "@repo/sync",
-  "version": "0.2.0-beta.0",
+  "version": "0.2.0",
   "private": true,
   "deprecated": "This package is deprecated. Use @basictech/react instead which includes the sync functionality.",
   "exports": {

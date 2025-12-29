@@ -1,5 +1,22 @@
 # 1.3.4
 
+## 0.7.0
+
+### Minor Changes
+
+- 6a506e9: api improvements, react refactor, nextjs update
+- e45744e: localstorage update
+- e45744e: storage adapater update
+- update apis, add remote db + sync db
+
+### Patch Changes
+
+- cdf7123: refresh token patch
+- 7e68aa3: add oauth settings
+- 841839f: fix: provider props
+- 7e68aa3: update token endpoint
+- 4f11b3e: config server url & token patch
+
 ## 0.7.0-beta.7
 
 ### Minor Changes
