@@ -1,5 +1,16 @@
 # nextjs
 
+## 0.3.0-beta.7
+
+### Minor Changes
+
+- api improvements, react refactor, nextjs update
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/nextjs@0.6.0-beta.7
+
 ## 0.3.0-beta.6
 
 ### Patch Changes

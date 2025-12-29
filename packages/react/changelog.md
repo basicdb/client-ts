@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.7.0-beta.7
+
+### Minor Changes
+
+- api improvements, react refactor, nextjs update
+
 ## 0.7.0-beta.6
 
 ### Patch Changes
