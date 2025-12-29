@@ -1,45 +1,36 @@
-
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// return NextResponse.redirect(new URL('/login', request.url))
-
-function GetToken(request: NextRequest) {
-  const token = request.cookies.get('basic_token')?.value
-
-  
-  return token
-}
-
-
-
+/**
+ * Basic middleware for auth token checking
+ * Uses the cookie set by BasicProvider
+ */
 export function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
-  console.log("middleware", path)
-  const token = GetToken(request)
-  console.log("token", token)
+  // Get token from cookie
+  const token = request.cookies.get('basic_access_token')?.value
 
-  // Check if the URL contains a 'code' parameter
+  // Log for debugging (remove in production)
+  console.log('[Middleware]', path, token ? 'authenticated' : 'not authenticated')
+
+  // Check if the URL contains a 'code' parameter (OAuth callback)
   const code = request.nextUrl.searchParams.get('code')
   if (code) {
-    console.log("Code found in URL:", code)
-
-    
-  }
-
-  // If it's the root path, just render it
-  if (path === '/') {
+    console.log('[Middleware] OAuth code found, allowing through')
     return NextResponse.next()
   }
 
-  // Check if there's a token in the request cookies
-
+  // For now, allow all requests through
+  // You can add protected route logic here:
+  // if (path.startsWith('/protected') && !token) {
+  //   return NextResponse.redirect(new URL('/', request.url))
+  // }
 
   return NextResponse.next()
 }
 
-// See "Matching Paths" below to learn more
+// Configure which routes to run middleware on
 export const config = {
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico).*)'],
 }

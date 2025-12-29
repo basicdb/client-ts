@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
 import { jwtDecode } from 'jwt-decode'
 
-import { BasicSync } from './sync'
+import { BasicSync, initDexieExtensions } from './sync'
+import { RemoteDB, DBMode, BasicDB } from './core/db'
 
 import { log } from './config'
 import { version as currentVersion } from '../package.json'
@@ -12,6 +13,7 @@ import { isDevelopment, checkForNewVersion, cleanOAuthParamsFromUrl, getSyncStat
 import { getSchemaStatus, validateAndCheckSchema } from './utils/schema'
 
 export type { BasicStorage, LocalStorageAdapter } from './utils/storage'
+export type { DBMode, BasicDB, Collection } from './core/db'
 
 export type AuthConfig = {
     scopes?: string | string[];
@@ -21,11 +23,22 @@ export type AuthConfig = {
 
 export type BasicProviderProps = {
     children: React.ReactNode;
+    /** 
+     * @deprecated Project ID is now extracted from schema.project_id. 
+     * This prop is kept for backward compatibility but can be omitted.
+     */
     project_id?: string;
+    /** The Basic schema object containing project_id and table definitions */
     schema?: any;
     debug?: boolean;
     storage?: BasicStorage;
     auth?: AuthConfig;
+    /**
+     * Database mode - determines which implementation is used
+     * - 'sync': Uses Dexie + WebSocket for local-first sync (default)
+     * - 'remote': Uses REST API calls directly to server
+     */
+    dbMode?: DBMode;
 }
 
 const DEFAULT_AUTH_CONFIG = {
@@ -74,30 +87,83 @@ type Token = {
     refresh_token: string,
 }
 
-export const BasicContext = createContext<{
-    unicorn: string,
-    isAuthReady: boolean,
-    isSignedIn: boolean,
-    user: User | null,
-    signout: () => Promise<void>,
-    signin: () => Promise<void>,
-    signinWithCode: (code: string, state?: string) => Promise<{ success: boolean, error?: string }>,
-    getToken: () => Promise<string>,
-    getSignInLink: (redirectUri?: string) => Promise<string>,
-    db: any,
-    dbStatus: DBStatus
-}>({
-    unicorn: "🦄",
-    isAuthReady: false,
+/**
+ * Auth result type for signInWithCode
+ */
+export type AuthResult = {
+    success: boolean;
+    error?: string;
+    code?: string;
+}
+
+/**
+ * Context type for useBasic hook
+ */
+export type BasicContextType = {
+    // Auth state
+    isReady: boolean;
+    isSignedIn: boolean;
+    user: User | null;
+    
+    // Auth actions (new camelCase naming)
+    signIn: () => Promise<void>;
+    signOut: () => Promise<void>;
+    signInWithCode: (code: string, state?: string) => Promise<AuthResult>;
+    
+    // Token management
+    getToken: () => Promise<string>;
+    getSignInUrl: (redirectUri?: string) => Promise<string>;
+    
+    // DB access
+    db: BasicDB;
+    dbStatus: DBStatus;
+    dbMode: DBMode;
+    
+    // Legacy aliases (deprecated - will be removed in future version)
+    /** @deprecated Use isReady instead */
+    isAuthReady: boolean;
+    /** @deprecated Use signIn instead */
+    signin: () => Promise<void>;
+    /** @deprecated Use signOut instead */
+    signout: () => Promise<void>;
+    /** @deprecated Use signInWithCode instead */
+    signinWithCode: (code: string, state?: string) => Promise<AuthResult>;
+    /** @deprecated Use getSignInUrl instead */
+    getSignInLink: (redirectUri?: string) => Promise<string>;
+}
+
+const noDb: BasicDB = {
+    collection: () => {
+        throw new Error('no basicdb found - initialization failed. double check your schema.')
+    }
+}
+
+export const BasicContext = createContext<BasicContextType>({
+    // Auth state
+    isReady: false,
     isSignedIn: false,
     user: null,
-    signout: () => Promise.resolve(),
+    
+    // Auth actions
+    signIn: () => Promise.resolve(),
+    signOut: () => Promise.resolve(),
+    signInWithCode: () => Promise.resolve({ success: false }),
+    
+    // Token management
+    getToken: () => Promise.reject(new Error('no token')),
+    getSignInUrl: () => Promise.resolve(""),
+    
+    // DB access
+    db: noDb,
+    dbStatus: DBStatus.LOADING,
+    dbMode: 'sync',
+    
+    // Legacy aliases
+    isAuthReady: false,
     signin: () => Promise.resolve(),
-    signinWithCode: () => new Promise(() => { }),
-    getToken: () => new Promise(() => { }),
-    getSignInLink: () => Promise.resolve(""),
-    db: {},
-    dbStatus: DBStatus.LOADING
+    signout: () => Promise.resolve(),
+    signinWithCode: () => Promise.resolve({ success: false }),
+    getSignInLink: () => Promise.resolve("")
 });
 
 type ErrorObject = {
@@ -108,12 +174,16 @@ type ErrorObject = {
 
 export function BasicProvider({
     children,
-    project_id,
+    project_id: project_id_prop,
     schema,
     debug = false,
     storage,
-    auth
+    auth,
+    dbMode = 'sync'
 }: BasicProviderProps) {
+    // Extract project_id from schema, fall back to prop for backward compatibility
+    const project_id = schema?.project_id || project_id_prop
+    
     const [isAuthReady, setIsAuthReady] = useState(false)
     const [isSignedIn, setIsSignedIn] = useState<boolean>(false)
     const [token, setToken] = useState<Token | null>(null)
@@ -127,6 +197,7 @@ export function BasicProvider({
     const [pendingRefresh, setPendingRefresh] = useState<boolean>(false)
 
     const syncRef = useRef<BasicSync | null>(null);
+    const remoteDbRef = useRef<RemoteDB | null>(null);
     const storageAdapter = storage || new LocalStorageAdapter();
     
     // Merge auth config with defaults
@@ -181,18 +252,18 @@ export function BasicProvider({
     }, [pendingRefresh, token])
 
     useEffect(() => {
-        function initDb(options: { shouldConnect: boolean }) {
+        async function initSyncDb(options: { shouldConnect: boolean }) {
             if (!syncRef.current) {
-                log('Initializing Basic DB')
+                log('Initializing Basic Sync DB')
+                
+                // Initialize Dexie extensions before creating BasicSync
+                await initDexieExtensions()
+                
                 syncRef.current = new BasicSync('basicdb', { schema: schema });
 
                 syncRef.current.syncable.on('statusChanged', (status: number, url: string) => {
                     setDbStatus(getSyncStatus(status) as DBStatus)
                 })
-
-                // syncRef.current.syncable.getStatus().then((status: number) => {
-                //     setDbStatus(getSyncStatus(status) as DBStatus)
-                // })
 
                 if (options.shouldConnect) {
                     setShouldConnect(true)
@@ -200,6 +271,36 @@ export function BasicProvider({
                     log('Sync is disabled')
                 }
 
+                setIsReady(true)
+            }
+        }
+
+        function initRemoteDb() {
+            if (!remoteDbRef.current) {
+                if (!project_id) {
+                    setError({
+                        code: 'missing_project_id',
+                        title: 'Project ID Required',
+                        message: 'Remote mode requires a project_id. Provide it via schema.project_id or the project_id prop.'
+                    })
+                    setIsReady(true)
+                    return
+                }
+
+                log('Initializing Basic Remote DB')
+                remoteDbRef.current = new RemoteDB({
+                    serverUrl: authConfig.server_url,
+                    projectId: project_id,
+                    getToken: getToken,
+                    schema: schema,
+                    debug: debug,
+                    onAuthError: (error) => {
+                        log('RemoteDB auth error:', error)
+                        // Sign out user when authentication fails after retry
+                        signout()
+                    }
+                })
+                setDbStatus(DBStatus.ONLINE)
                 setIsReady(true)
             }
         }
@@ -223,11 +324,17 @@ export function BasicProvider({
                 return null
             }
 
-            if (result.schemaStatus.valid) {
-                initDb({ shouldConnect: true })
+            // Initialize the appropriate DB based on mode
+            if (dbMode === 'remote') {
+                initRemoteDb()
             } else {
-                log('Schema is invalid!', result.schemaStatus)
-                initDb({ shouldConnect: false })
+                // Sync mode
+                if (result.schemaStatus.valid) {
+                    await initSyncDb({ shouldConnect: true })
+                } else {
+                    log('Schema is invalid!', result.schemaStatus)
+                    await initSyncDb({ shouldConnect: false })
+                }
             }
 
             checkForNewVersion()
@@ -236,7 +343,12 @@ export function BasicProvider({
         if (schema) {
             checkSchema()
         } else {
-            setIsReady(true)
+            // No schema - still initialize remote DB if in remote mode
+            if (dbMode === 'remote' && project_id) {
+                initRemoteDb()
+            } else {
+                setIsReady(true)
+            }
         }
     }, []);
 
@@ -829,27 +941,45 @@ export function BasicProvider({
         return refreshPromise
     }
 
-    const noDb = ({
-        collection: () => {
-            throw new Error('no basicdb found - initialization failed. double check your schema.')
+    // Get the current DB instance based on mode
+    const getCurrentDb = (): BasicDB => {
+        if (dbMode === 'remote') {
+            return remoteDbRef.current || noDb
         }
-    })
+        return syncRef.current || noDb
+    }
+
+    // Create context value with new names and legacy aliases
+    const contextValue: BasicContextType = {
+        // Auth state (new naming)
+        isReady: isAuthReady,
+        isSignedIn,
+        user,
+        
+        // Auth actions (new camelCase naming)
+        signIn: signin,
+        signOut: signout,
+        signInWithCode: signinWithCode,
+        
+        // Token management
+        getToken,
+        getSignInUrl: getSignInLink,
+        
+        // DB access
+        db: getCurrentDb(),
+        dbStatus,
+        dbMode,
+        
+        // Legacy aliases (deprecated)
+        isAuthReady,
+        signin,
+        signout,
+        signinWithCode,
+        getSignInLink,
+    }
 
     return (
-        <BasicContext.Provider value={{
-            unicorn: "🦄",
-            isAuthReady,
-            isSignedIn,
-            user,
-            signout,
-            signin,
-            signinWithCode,
-            getToken,
-            getSignInLink,
-            db: syncRef.current ? syncRef.current : noDb,
-            dbStatus
-        }}>
-
+        <BasicContext.Provider value={contextValue}>
             {error && isDevMode() && <ErrorDisplay error={error} />}
             {isReady && children}
         </BasicContext.Provider>

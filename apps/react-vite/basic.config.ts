@@ -2,65 +2,34 @@
 // Basic Project Configuration
 // see  the docs for more info: https://docs.basic.tech
 export const config = {
-  name: "testproject",
-  project_id: "edf4539a-e2e6-403c-8dec-7267565ce46d"
+	name: "testproject",
+	project_id: "f25f9dc0-4501-4b48-a360-bab22d35c09e"
 };
 
 export const schema = {
-		project_id: "edf4539a-e2e6-403c-8dec-7267565ce46d",
-		tables: {
-			foo: {
-				fields: {
-					bar: {
-						indexed: true,
-						type: "string"
-					}
+	"project_id": "f25f9dc0-4501-4b48-a360-bab22d35c09e",
+	"tables": {
+		"foo": {
+			"type": "collection",
+			"fields": {
+				"data": {
+					"type": "json",
+					"indexed": true
 				},
-				origin: {
-					project_id: "bd1e08c6-25d0-44eb-bf5a-53922874b5e8",
-					table: "foo",
-					type: "reference"
+				"name": {
+					"type": "string",
+					"indexed": true
 				},
-				type: "collection"
-			},
-			hello: {
-				fields: {
-					hello: {
-						indexed: true,
-						type: "string"
-					}
+				"count": {
+					"type": "number",
+					"indexed": true
 				},
-				type: "collection"
-			},
-			test: {
-				fields: {
-					boolone: {
-						indexed: true,
-						type: "boolean"
-					},
-					booltwo: {
-						indexed: true,
-						type: "boolean"
-					},
-					js: {
-						indexed: true,
-						type: "json"
-					},
-					num: {
-						indexed: true,
-						type: "number"
-					},
-					strone: {
-						indexed: true,
-						type: "string"
-					},
-					test: {
-						indexed: true,
-						type: "string"
-					}
-				},
-				type: "collection"
+				"is_done": {
+					"type": "boolean",
+					"indexed": true
+				}
 			}
-		},
-		version: 3
-	};
+		}
+	},
+	"version": 1
+};

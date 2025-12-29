@@ -1,285 +1,591 @@
-// @ts-nocheck
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 
-import { useBasic, useQuery } from "@basictech/react"
-import { validateSchema, validateData } from "@basictech/schema"
+import { useBasic, useQuery, DBMode, STORAGE_KEYS } from "@basictech/react"
+
+// Helper to set dbMode in URL (triggers page reload)
+const setDbModeInUrl = (mode: DBMode) => {
+  const url = new URL(window.location.href)
+  url.searchParams.set('dbMode', mode)
+  window.location.href = url.toString()
+}
+
+// Types for the foo collection (matches schema)
+interface FooItem {
+  id: string
+  name: string
+  count: number
+  is_done: boolean
+  data?: Record<string, unknown>
+}
+
+interface QueryResult {
+  type: 'get' | 'filter'
+  data?: FooItem | FooItem[] | null
+  error?: string
+}
+
+type StorageValues = Record<string, string | null>
 
 function App() {
-  const { db, dbStatus, isAuthReady, isSignedIn, user, signout, signin, signinWithCode, getToken, getSignInLink } = useBasic()
-  const [newItemText, setNewItemText] = useState('')
+  const { 
+    db, 
+    dbStatus, 
+    dbMode,
+    isReady,
+    isSignedIn, 
+    user, 
+    signOut,
+    signIn,
+    signInWithCode,
+    getToken, 
+    getSignInUrl
+  } = useBasic()
+  
+  const [newFooItem, setNewFooItem] = useState({ name: '', count: 0, is_done: false })
   const [authCode, setAuthCode] = useState('')
   const [authState, setAuthState] = useState('')
+  const [remoteFooItems, setRemoteFooItems] = useState<FooItem[]>([])
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [storageValues, setStorageValues] = useState<StorageValues>({})
+  const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [queryId, setQueryId] = useState('')
+  const [queryResult, setQueryResult] = useState<QueryResult | null>(null)
+
+  // Load storage values
+  const refreshStorageValues = useCallback(() => {
+    const values: StorageValues = {}
+    Object.entries(STORAGE_KEYS).forEach(([key, storageKey]) => {
+      values[key] = localStorage.getItem(storageKey)
+    })
+    setStorageValues(values)
+  }, [])
+
+  // Load storage values on mount and when auth state changes
+  useEffect(() => {
+    refreshStorageValues()
+  }, [isSignedIn, isReady, refreshStorageValues])
   
-  const todos = useQuery(() => db.collection('hello').getAll())
-  const foo = useQuery(() => db.collection('foo').getAll())
+  // For sync mode, use live query
+  const syncFooItems = useQuery(() => dbMode === 'sync' ? db.collection('foo').getAll() : Promise.resolve([]))
+  
+  // Use sync items or remote items based on mode
+  const fooItems = dbMode === 'sync' ? syncFooItems : remoteFooItems
 
-  // DB Functions
-  const addItem = async () => {
+  // Fetch data for remote mode
+  const refreshFooItems = useCallback(async () => {
+    if (dbMode !== 'remote') return
+    setIsRefreshing(true)
     try {
-      const result = await db.collection('hello').add({
-        hello: newItemText || `test ${Math.floor(Math.random() * 1000) + 1}`
+      const items = await db.collection<FooItem>('foo').getAll()
+      setRemoteFooItems(items)
+      console.log('foo.getAll() refreshed:', items)
+    } catch (error) {
+      console.error('foo.getAll() error:', error)
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [db, dbMode])
+
+  // Auto-fetch on mount for remote mode
+  useEffect(() => {
+    if (dbMode === 'remote' && isReady) {
+      refreshFooItems()
+    }
+  }, [dbMode, isReady, refreshFooItems])
+
+  // Toggle dbMode (requires page reload since it's a provider prop)
+  const toggleDbMode = () => {
+    const newMode: DBMode = dbMode === 'sync' ? 'remote' : 'sync'
+    setDbModeInUrl(newMode)
+  }
+
+  // Foo Collection Functions (matches schema: name, count, is_done, data)
+  const addFooItem = async () => {
+    try {
+      // Default to random values if inputs are empty
+      const result = await db.collection('foo').add({
+        name: newFooItem.name || `item_${Math.floor(Math.random() * 10000)}`,
+        count: newFooItem.count || Math.floor(Math.random() * 100),
+        is_done: newFooItem.is_done,
+        data: { created: Date.now() }
       })
-      console.log('Add item result:', result)
-      setNewItemText('')
+      console.log('foo.add() result:', result)
+      setNewFooItem({ name: '', count: 0, is_done: false })
+      if (dbMode === 'remote') refreshFooItems()
     } catch (error) {
-      console.error('Add item error:', error)
+      console.error('foo.add() error:', error)
     }
   }
 
-  const updateItem = async (id: string) => {
+  const updateFooItem = async (id: string) => {
     try {
-      const result = await db.collection('hello').update(id, {
-        hello: `updated ${Math.floor(Math.random() * 1000) + 1}`
+      const result = await db.collection('foo').update(id, {
+        count: Math.floor(Math.random() * 100),
+        is_done: Math.random() > 0.5
       })
-      console.log('Update item result:', result)
+      console.log('foo.update() result:', result)
+      if (dbMode === 'remote') refreshFooItems()
     } catch (error) {
-      console.error('Update item error:', error)
+      console.error('foo.update() error:', error)
     }
   }
 
-  const deleteItem = async (id: string) => {
+  const deleteFooItem = async (id: string) => {
     try {
-      const result = await db.collection('hello').delete(id)
-      console.log('Delete item result:', result)
+      const result = await db.collection('foo').delete(id)
+      console.log('foo.delete() result:', result)
+      if (dbMode === 'remote') refreshFooItems()
     } catch (error) {
-      console.error('Delete item error:', error)
-    }
-  }
-
-  const getAllItems = async () => {
-    try {
-      const result = await db.collection('hello').getAll()
-      console.log('Get all items result:', result)
-    } catch (error) {
-      console.error('Get all items error:', error)
+      console.error('foo.delete() error:', error)
     }
   }
 
   // Auth Functions
-  const testGetSignInLink = () => {
+  const testGetSignInUrl = async () => {
     try {
-      const link = getSignInLink()
-      console.log('Get sign in link result:', link)
+      const url = await getSignInUrl()
+      console.log('getSignInUrl() result:', url)
     } catch (error) {
-      console.error('Get sign in link error:', error)
+      console.error('getSignInUrl() error:', error)
     }
   }
 
   const testGetToken = async () => {
     try {
       const token = await getToken()
-      console.log('Get token result:', token)
+      console.log('getToken() result:', token)
+      setAccessToken(token)
     } catch (error) {
-      console.error('Get token error:', error)
+      console.error('getToken() error:', error)
+      setAccessToken(null)
     }
   }
 
   const testSignInWithCode = async () => {
     try {
-      const result = await signinWithCode(authCode, authState)
-      console.log('Sign in with code result:', result)
+      const result = await signInWithCode(authCode, authState)
+      console.log('signInWithCode() result:', result)
     } catch (error) {
-      console.error('Sign in with code error:', error)
+      console.error('signInWithCode() error:', error)
     }
   }
 
+  // DB Query Functions
+  const testGetById = async () => {
+    if (!queryId.trim()) return
+    try {
+      const result = await db.collection<FooItem>('foo').get(queryId.trim())
+      console.log('foo.get() result:', result)
+      setQueryResult({ type: 'get', data: result })
+    } catch (error) {
+      console.error('foo.get() error:', error)
+      setQueryResult({ type: 'get', error: String(error) })
+    }
+  }
+
+  const testFilterDone = async () => {
+    try {
+      const result = await db.collection<FooItem>('foo').filter((item) => item.is_done === true)
+      console.log('foo.filter(is_done=true) result:', result)
+      setQueryResult({ type: 'filter', data: result })
+    } catch (error) {
+      console.error('foo.filter() error:', error)
+      setQueryResult({ type: 'filter', error: String(error) })
+    }
+  }
+
+  const testFilterNotDone = async () => {
+    try {
+      const result = await db.collection<FooItem>('foo').filter((item) => item.is_done === false)
+      console.log('foo.filter(is_done=false) result:', result)
+      setQueryResult({ type: 'filter', data: result })
+    } catch (error) {
+      console.error('foo.filter() error:', error)
+      setQueryResult({ type: 'filter', error: String(error) })
+    }
+  }
+
+  // Decode JWT token for display
+  const decodeToken = (token: string) => {
+    try {
+      const parts = token.split('.')
+      if (parts.length !== 3) return null
+      const payload = JSON.parse(atob(parts[1]))
+      return payload
+    } catch {
+      return null
+    }
+  }
+
+  const getStatusClass = () => {
+    if (dbStatus === 'ONLINE') return 'connected'
+    if (dbStatus === 'CONNECTING' || dbStatus === 'SYNCING') return 'connecting'
+    return ''
+  }
 
   return (
-    <>
-      {/* Sticky Header with Title */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        padding: '1rem',
-        background: '#1a1a1a',
-        borderBottom: '1px solid #333',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        zIndex: 100
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-          <h1 style={{ margin: 0, fontSize: '1.5rem' }}>@basictech/react</h1>
-          <div>
-            Status: <span style={{ color: '#646cff' }}>{dbStatus}</span>
+    <div className="dashboard">
+      {/* Header */}
+      <header className="header">
+        <div className="header-left">
+          <span className="header-title">@basictech/react</span>
+          <div className="status-badge">
+            <span className={`status-dot ${getStatusClass()}`} />
+            <span>{dbStatus}</span>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {user?.email && <span>{user.email}</span>}
+        <div className="header-right">
+          {user?.email && <span className="user-email">{user.email}</span>}
           {isSignedIn ? (
-            <button onClick={signout}>Sign Out</button>
+            <button onClick={signOut}>Sign Out</button>
           ) : (
-            <button onClick={signin}>Sign In</button>
+            <button className="primary" onClick={signIn}>Sign In</button>
           )}
         </div>
-      </div>
-      <div style={{ height: '80px' }} /> 
+      </header>
 
-      {/* Main Content - Two Column Layout */}
-      <div style={{ 
-        display: 'flex', 
-        gap: '4rem', 
-        padding: '2rem',
-        minHeight: 'calc(100vh - 80px)'
-      }}>
-        
-        {/* Left Half - DB Functions */}
-        <div style={{ flex: 1 }}>
-          <h2>Database Functions Testing</h2>
+      {/* Main Content */}
+      <main className="main-content">
+        {/* Left Column - Database */}
+        <div className="column">
+          <h2>Database</h2>
           
-          {/* Add Item Section */}
-          <div className="card" style={{ padding: '20px', borderRadius: '8px', margin: '20px 0' }}>
-            <h3>Add Item</h3>
-            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-              <input 
-                type="text" 
-                placeholder="Add new item..."
-                value={newItemText}
-                onChange={(e) => setNewItemText(e.target.value)}
-                style={{ 
-                  flex: 1,
-                  padding: '8px',
-                  borderRadius: '4px',
-                  border: '1px solid #ccc'
-                }}
-              />
-              <button onClick={addItem}>Add</button>
+          {/* DB Mode Toggle */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">Mode</span>
             </div>
-            <button onClick={getAllItems} style={{ marginRight: '0.5rem' }}>Get All Items</button>
+            <div className="panel-body">
+              <div className="status-grid">
+                <div className="status-item">
+                  <span className="status-label">dbMode</span>
+                  <span className={`status-value ${dbMode === 'sync' ? 'success' : 'pending'}`}>
+                    {dbMode}
+                  </span>
+                </div>
+                <div className="status-item">
+                  <span className="status-label">dbStatus</span>
+                  <span className="status-value">{dbStatus}</span>
+                </div>
+              </div>
+              <div className="form-row" style={{ marginTop: 'var(--space-3)' }}>
+                <button 
+                  className={dbMode === 'sync' ? 'primary' : ''} 
+                  onClick={() => dbMode !== 'sync' && toggleDbMode()}
+                  disabled={dbMode === 'sync'}
+                >
+                  Sync Mode
+                </button>
+                <button 
+                  className={dbMode === 'remote' ? 'primary' : ''} 
+                  onClick={() => dbMode !== 'remote' && toggleDbMode()}
+                  disabled={dbMode === 'remote'}
+                >
+                  Remote Mode
+                </button>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 'var(--space-2)' }}>
+                {dbMode === 'sync' 
+                  ? 'Using local IndexedDB + WebSocket sync' 
+                  : 'Using REST API calls directly'}
+              </div>
+            </div>
           </div>
 
-          {/* Items List */}
-          <div className="card" style={{ padding: '20px', borderRadius: '8px', margin: '20px 0' }}>
-            <h3>Items List</h3>
-            {todos?.map((todo: any) => (
-              <div key={todo.id} style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.5rem', 
-                padding: '0.5rem',
-                marginBottom: '0.5rem',
-                borderRadius: '4px',
-                transition: 'background-color 0.2s ease',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--hover-bg, rgba(255, 255, 255, 0.1))'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-              >
-                <span style={{ flex: 1 }}>{todo.hello}</span>
-                <button onClick={() => updateItem(todo.id)}>Update</button>
-                <button onClick={() => deleteItem(todo.id)}>Delete</button>
+          {/* Foo Collection - matches schema: name, count, is_done, data */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">foo</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  {fooItems?.length || 0} items
+                </span>
+                {dbMode === 'remote' && (
+                  <button 
+                    className="icon-btn small" 
+                    onClick={refreshFooItems}
+                    disabled={isRefreshing}
+                    title="Refresh data"
+                    style={{ width: 24, height: 24, fontSize: 12 }}
+                  >
+                    {isRefreshing ? '...' : '↻'}
+                  </button>
+                )}
               </div>
-            ))}
+            </div>
+            <div className="panel-body">
+              <div className="form-row" style={{ marginBottom: 'var(--space-3)' }}>
+                <input 
+                  type="text" 
+                  placeholder="name"
+                  value={newFooItem.name}
+                  onChange={(e) => setNewFooItem(prev => ({ ...prev, name: e.target.value }))}
+                  onKeyDown={(e) => e.key === 'Enter' && addFooItem()}
+                  style={{ flex: 1 }}
+                />
+                <input 
+                  type="number" 
+                  placeholder="0"
+                  value={newFooItem.count || ''}
+                  onChange={(e) => setNewFooItem(prev => ({ ...prev, count: Number(e.target.value) || 0 }))}
+                  className="number-input"
+                />
+                <button 
+                  className="icon-btn"
+                  onClick={() => setNewFooItem(prev => ({ ...prev, is_done: !prev.is_done }))}
+                  title={newFooItem.is_done ? 'Mark as not done' : 'Mark as done'}
+                  style={{ 
+                    opacity: newFooItem.is_done ? 1 : 0.4,
+                    fontSize: 16
+                  }}
+                >
+                  ✓
+                </button>
+                <button className="icon-btn primary" onClick={addFooItem} title="Add item">
+                  +
+                </button>
+              </div>
+              {fooItems?.length === 0 && (
+                <div className="empty-state">No items</div>
+              )}
+              {fooItems?.map((item) => (
+                <div key={item.id} className="list-item">
+                  <div style={{ flex: 1 }}>
+                    <div className="list-item-text">{item.name || '(no name)'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      count: {item.count} • done: {item.is_done ? '✓' : '✗'}
+                    </div>
+                  </div>
+                  <span className="list-item-id">{item.id?.slice(0, 8)}</span>
+                  <div className="list-item-actions">
+                    <button className="small" onClick={() => updateFooItem(item.id)}>Edit</button>
+                    <button className="small danger" onClick={() => deleteFooItem(item.id)}>Del</button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
 
-          {/* Foo Collection */}
-          <div className="card" style={{ padding: '20px', borderRadius: '8px', margin: '20px 0' }}>
-            <h3>Foo Collection</h3>
-            {foo?.map((item: any) => (
-              <div key={item.id} style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.5rem', 
-                padding: '0.5rem',
-                marginBottom: '0.5rem',
-                borderRadius: '4px',
-                transition: 'background-color 0.2s ease',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => e.target.style.backgroundColor = 'var(--hover-bg, rgba(255, 255, 255, 0.1))'}
-              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-              >
-                <span style={{ flex: 1 }}>{item.bar}</span>
-                <button onClick={() => {
-                  db.collection('foo').update(item.id, {
-                    bar: `updated ${Math.floor(Math.random() * 1000) + 1}`
-                  })
-                }}>Update</button>
+          {/* Query Testing */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">Query Methods</span>
+            </div>
+            <div className="panel-body">
+              {/* get(id) */}
+              <div className="form-row" style={{ marginBottom: 'var(--space-2)' }}>
+                <input 
+                  type="text" 
+                  placeholder="item id"
+                  value={queryId}
+                  onChange={(e) => setQueryId(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && testGetById()}
+                  style={{ flex: 1 }}
+                />
+                <button onClick={testGetById}>get(id)</button>
               </div>
-            ))}
+              
+              {/* filter() */}
+              <div className="button-group" style={{ marginBottom: 'var(--space-3)' }}>
+                <button onClick={testFilterDone}>filter(done)</button>
+                <button onClick={testFilterNotDone}>filter(!done)</button>
+              </div>
+
+              {/* Query Result */}
+              {queryResult && (
+                <div className="query-result">
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 4 }}>
+                    {queryResult.type}() result:
+                  </div>
+                  {queryResult.error ? (
+                    <div style={{ color: 'var(--accent-error)' }}>{queryResult.error}</div>
+                  ) : queryResult.data === null ? (
+                    <div style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>null (not found)</div>
+                  ) : Array.isArray(queryResult.data) ? (
+                    <div>{queryResult.data.length} items found</div>
+                  ) : (
+                    <pre style={{ margin: 0, fontSize: 10, overflow: 'auto' }}>
+                      {JSON.stringify(queryResult.data, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Right Half - Auth Functions */}
-        <div style={{ flex: 1 }}>
-          <h2>Authentication Functions Testing</h2>
+        {/* Right Column - Auth */}
+        <div className="column">
+          <h2>Authentication</h2>
           
           {/* Auth Status */}
-          <div className="card" style={{ padding: '20px', borderRadius: '8px', margin: '20px 0' }}>
-            <h3>Auth Status</h3>
-            <p>Auth Ready: <span style={{ color: isAuthReady ? 'var(--success-color, #4caf50)' : 'var(--error-color, #f44336)' }}>{isAuthReady ? 'Yes' : 'No'}</span></p>
-            <p>Signed In: <span style={{ color: isSignedIn ? 'var(--success-color, #4caf50)' : 'var(--error-color, #f44336)' }}>{isSignedIn ? 'Yes' : 'No'}</span></p>
-            {user && (
-              <div>
-                <p>User: {user.email || user.name || 'Unknown'}</p>
-                <p>ID: {user.id}</p>
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">Status</span>
+            </div>
+            <div className="panel-body">
+              <div className="status-grid">
+                <div className="status-item">
+                  <span className="status-label">isReady</span>
+                  <span className={`status-value ${isReady ? 'success' : 'pending'}`}>
+                    {isReady ? 'Yes' : 'No'}
+                  </span>
+                </div>
+                <div className="status-item">
+                  <span className="status-label">isSignedIn</span>
+                  <span className={`status-value ${isSignedIn ? 'success' : 'error'}`}>
+                    {isSignedIn ? 'Yes' : 'No'}
+                  </span>
+                </div>
               </div>
-            )}
+              {user && (
+                <div className="user-info" style={{ marginTop: 'var(--space-3)' }}>
+                  <div className="user-info-row">
+                    <span className="user-info-label">email</span>
+                    <span>{user.email || '—'}</span>
+                  </div>
+                  <div className="user-info-row">
+                    <span className="user-info-label">id</span>
+                    <span>{user.id}</span>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Auth Functions */}
-          <div className="card" style={{ padding: '20px', borderRadius: '8px', margin: '20px 0' }}>
-            <h3>Auth Functions</h3>
-            
-            <div style={{ marginBottom: '1rem' }}>
-              <button onClick={testGetSignInLink} style={{ marginRight: '0.5rem' }}>
-                Test getSignInLink()
-              </button>
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">Functions</span>
             </div>
-
-            <div style={{ marginBottom: '1rem' }}>
-              <button onClick={testGetToken} style={{ marginRight: '0.5rem' }}>
-                Test getToken()
-              </button>
-            </div>
-
-            <div style={{ marginBottom: '1rem' }}>
-              <h4>Sign In With Code</h4>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <input 
-                  type="text" 
-                  placeholder="Auth Code"
-                  value={authCode}
-                  onChange={(e) => setAuthCode(e.target.value)}
-                  style={{ 
-                    padding: '8px',
-                    borderRadius: '4px',
-                    border: '1px solid #ccc'
-                  }}
-                />
-                <input 
-                  type="text" 
-                  placeholder="State (optional)"
-                  value={authState}
-                  onChange={(e) => setAuthState(e.target.value)}
-                  style={{ 
-                    padding: '8px',
-                    borderRadius: '4px',
-                    border: '1px solid #ccc'
-                  }}
-                />
-                <button onClick={testSignInWithCode}>
-                  Test signinWithCode()
-                </button>
+            <div className="panel-body">
+              <div className="button-group" style={{ marginBottom: 'var(--space-3)' }}>
+                <button onClick={testGetSignInUrl}>getSignInUrl()</button>
+                <button onClick={testGetToken}>getToken()</button>
               </div>
-            </div>
-
-            <div style={{ marginBottom: '1rem' }}>
-              <button onClick={signin} style={{ marginRight: '0.5rem' }}>
-                Sign In
-              </button>
-              <button onClick={signout}>
-                Sign Out
-              </button>
+              <div className="button-group">
+                <button onClick={signIn}>signIn()</button>
+                <button onClick={signOut}>signOut()</button>
+              </div>
             </div>
           </div>
 
+          {/* Access Token */}
+          {accessToken && (
+            <div className="panel">
+              <div className="panel-header">
+                <span className="panel-title">Access Token</span>
+                <button 
+                  className="icon-btn small" 
+                  onClick={() => setAccessToken(null)}
+                  title="Clear"
+                  style={{ width: 24, height: 24, fontSize: 12 }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="panel-body">
+                <div className="token-display">
+                  <div className="token-raw">
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Raw (truncated):</span>
+                    <code>{accessToken.slice(0, 50)}...</code>
+                  </div>
+                  {decodeToken(accessToken) && (
+                    <div className="token-decoded">
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Decoded payload:</span>
+                      <pre>{JSON.stringify(decodeToken(accessToken), null, 2)}</pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Sign In With Code */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">signInWithCode()</span>
+            </div>
+            <div className="panel-body">
+              <div className="form-stack">
+                <input 
+                  type="text" 
+                  placeholder="code"
+                  value={authCode}
+                  onChange={(e) => setAuthCode(e.target.value)}
+                />
+                <input 
+                  type="text" 
+                  placeholder="state (optional)"
+                  value={authState}
+                  onChange={(e) => setAuthState(e.target.value)}
+                />
+                <button onClick={testSignInWithCode}>Execute</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Local Storage */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">Local Storage</span>
+              <button 
+                className="icon-btn small" 
+                onClick={refreshStorageValues}
+                title="Refresh"
+                style={{ width: 24, height: 24, fontSize: 12 }}
+              >
+                ↻
+              </button>
+            </div>
+            <div className="panel-body">
+              <div className="storage-list">
+                {Object.entries(STORAGE_KEYS).map(([key, storageKey]) => {
+                  const value = storageValues[key]
+                  
+                  // Parse JSON for USER_INFO
+                  let parsedJson = null
+                  if (key === 'USER_INFO' && value) {
+                    try {
+                      parsedJson = JSON.parse(value)
+                    } catch {
+                      // ignore parse errors
+                    }
+                  }
+
+                  const displayValue = value 
+                    ? (key === 'REFRESH_TOKEN' 
+                        ? `${value.slice(0, 20)}...` 
+                        : value)
+                    : null
+                  
+                  return (
+                    <div key={key} className="storage-item">
+                      <div className="storage-key">
+                        <span className="storage-key-name">{storageKey}</span>
+                        <span className={`storage-status ${value ? 'has-value' : ''}`}>
+                          {value ? '●' : '○'}
+                        </span>
+                      </div>
+                      <div className="storage-value">
+                        {!value ? (
+                          <span className="empty">empty</span>
+                        ) : parsedJson ? (
+                          <pre className="storage-json">{JSON.stringify(parsedJson, null, 2)}</pre>
+                        ) : (
+                          displayValue
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
-    </>
+      </main>
+    </div>
   )
 }
 

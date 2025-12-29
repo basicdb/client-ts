@@ -1,13 +1,29 @@
-import { useState } from "react";
-import { useBasic, BasicProvider, BasicStorage, LocalStorageAdapter, AuthConfig, BasicProviderProps } from "./AuthContext";
+import { useBasic, BasicProvider } from "./AuthContext";
 import { useLiveQuery as useQuery } from "dexie-react-hooks";
-// import { createVersionUpdater, VersionUpdater, Migration } from "./versionUpdater";
 
+// Re-export from AuthContext
+export { useBasic, BasicProvider, useQuery }
 
-export {
-    useBasic, BasicProvider, useQuery
-}
+// Type exports
+export type { 
+    AuthConfig, 
+    BasicStorage, 
+    LocalStorageAdapter, 
+    BasicProviderProps,
+    BasicContextType,
+    AuthResult
+} from "./AuthContext"
 
-export type {
-    AuthConfig, BasicStorage, LocalStorageAdapter, BasicProviderProps
-}
+// Core DB exports
+export type { 
+    DBMode, 
+    BasicDB, 
+    Collection, 
+    RemoteDBConfig,
+    AuthError
+} from "./core/db"
+
+export { RemoteDB, RemoteCollection, RemoteDBError, NotAuthenticatedError } from "./core/db"
+
+// Storage utilities
+export { STORAGE_KEYS } from "./utils/storage"
