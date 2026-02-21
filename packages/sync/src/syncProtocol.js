@@ -61,7 +61,7 @@ export const syncProtocol = function () {
 
 
       // When WebSocket opens, send our changes to the server.
-      ws.onopen = function (event) {
+      ws.onopen = function () {
         // Initiate this socket connection by sending our clientIdentity. If we dont have a clientIdentity yet,
         // server will call back with a new client identity that we should use in future WebSocket connections.
         
@@ -109,7 +109,7 @@ export const syncProtocol = function () {
           //     partial: true if server has additionalChanges to send. False if these changes were the last known. (applicable if type="changes")
           // }
           var requestFromServer = JSON.parse(event.data);
-          console.log("requestFromServer", requestFromServer, { acceptCallback, isFirstRound });
+          console.log("requestFromServer", requestFromServer, { isFirstRound });
 
           if (requestFromServer.type == "clientIdentity") {
             context.clientIdentity = requestFromServer.clientIdentity;
@@ -123,7 +123,6 @@ export const syncProtocol = function () {
                 syncedRevision: syncedRevision,
               }),
             );
-          } else if (requestFromServer.type == "error") {
           } else if (requestFromServer.type == "changes") {
             applyRemoteChanges(
               requestFromServer.changes,
@@ -155,12 +154,11 @@ export const syncProtocol = function () {
               isFirstRound = false;
             }
           } else if (requestFromServer.type == "ack") {
-            var requestId = requestFromServer.requestId;
-            var acceptCallback = acceptCallbacks[requestId.toString()];
+            var ackRequestId = requestFromServer.requestId;
+            var acceptCallback = acceptCallbacks[ackRequestId.toString()];
             acceptCallback(); // Tell framework that server has acknowledged the changes sent.
-            delete acceptCallbacks[requestId.toString()];
+            delete acceptCallbacks[ackRequestId.toString()];
           } else if (requestFromServer.type == "error") {
-            var requestId = requestFromServer.requestId;
             ws.close();
             onError(requestFromServer.message, Infinity); // Don't reconnect - an error in application level means we have done something wrong.
           } else {

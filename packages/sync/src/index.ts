@@ -17,7 +17,7 @@
  */
 
 import { v7 as uuidv7 } from 'uuid';
-import { Dexie, PromiseExtended } from 'dexie';
+import { Dexie } from 'dexie';
 import 'dexie-observable';
 import 'dexie-syncable';
 
@@ -30,18 +30,6 @@ console.warn(
 )
 
 syncProtocol()
-
-
-const DexieSyncStatus = {
-  "-1": "ERROR",
-  "0": "OFFLINE",
-  "1": "CONNECTING",
-  "2": "ONLINE",
-  "3": "SYNCING",
-  "4": "ERROR_WILL_RETRY"
-}
-
-
 
 
 export class BasicSync extends Dexie {
@@ -134,8 +122,10 @@ export class BasicSync extends Dexie {
 
   _convertSchemaToDxSchema(schema: any) {
     const stores = Object.entries(schema.tables).map(([key, table]: any) => {
-
-      const indexedFields = Object.entries(table.fields).filter(([key, field]: any) => field.indexed).map(([key, field]: any) => `,${key}`).join('')
+      const indexedFields = Object.entries(table.fields)
+        .filter(([, field]: any) => field.indexed)
+        .map(([fieldKey]: any) => `,${fieldKey}`)
+        .join('')
       return {
         [key]: 'id' + indexedFields
       }

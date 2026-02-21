@@ -4,7 +4,7 @@ import { v7 as uuidv7 } from 'uuid';
 import { Dexie } from 'dexie';
 
 import { log } from '../config'
-import { validateSchema, validateData } from '@basictech/schema'
+import { validateData } from '@basictech/schema'
 
 // Track initialization state
 let dexieExtensionsLoaded = false;
@@ -149,8 +149,10 @@ export class BasicSync extends Dexie {
 
   _convertSchemaToDxSchema(schema: any) {
     const stores = Object.entries(schema.tables).map(([key, table]: any) => {
-
-      const indexedFields = Object.entries(table.fields).filter(([key, field]: any) => field.indexed).map(([key, field]: any) => `,${key}`).join('')
+      const indexedFields = Object.entries(table.fields)
+        .filter(([, field]: any) => field.indexed)
+        .map(([fieldKey]: any) => `,${fieldKey}`)
+        .join('')
       return {
         [key]: 'id' + indexedFields
       }

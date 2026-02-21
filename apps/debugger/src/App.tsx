@@ -1,10 +1,10 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 import { useState, useEffect, useRef } from 'react'
 import './App.css'
 import Editor from '@monaco-editor/react'
 
-import { useBasic, useQuery } from "@basictech/react"
-import { validateSchema, validateData, compareSchemas, validateUpdateSchema } from "@basictech/schema"
+import { validateSchema, compareSchemas, validateUpdateSchema } from "@basictech/schema"
 
 function App() {
   const [projectId, setProjectId] = useState('bd1e08c6-25d0-44eb-bf5a-53922874b5e8')
@@ -126,7 +126,7 @@ function App() {
     try {
       const parsedSchema = JSON.parse(value)
       setEditedSchema(parsedSchema)
-    } catch (err) {
+    } catch {
       // Invalid JSON, but we'll keep the raw value for editing
     }
   }

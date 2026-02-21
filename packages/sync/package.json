@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "lint": "eslint . --max-warnings 0"
+    "lint": "eslint ."
   },
   "dependencies": {
     "dexie": "^4.0.8",

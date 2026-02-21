@@ -10,7 +10,7 @@ import { createVersionUpdater } from './updater/versionUpdater'
 import { getMigrations } from './updater/updateMigrations'
 import { BasicStorage, LocalStorageAdapter, STORAGE_KEYS, getCookie, setCookie, clearCookie } from './utils/storage'
 import { isDevelopment, checkForNewVersion, cleanOAuthParamsFromUrl, getSyncStatus } from './utils/network'
-import { getSchemaStatus, validateAndCheckSchema } from './utils/schema'
+import { validateAndCheckSchema } from './utils/schema'
 
 export type { BasicStorage, LocalStorageAdapter } from './utils/storage'
 export type { DBMode, BasicDB, Collection } from './core/db'
@@ -46,20 +46,6 @@ const DEFAULT_AUTH_CONFIG = {
     server_url: 'https://api.basic.tech',
     ws_url: 'wss://pds.basic.id/ws'
 } as const
-
-
-type BasicSyncType = {
-    basic_schema: any;
-    connect: (options: { access_token: string; ws_url?: string }) => void;
-    debugeroo: () => void;
-    collection: (name: string) => {
-        ref: {
-            toArray: () => Promise<any[]>;
-            count: () => Promise<number>;
-        };
-    };
-    [key: string]: any;
-};
 
 
 enum DBStatus {
@@ -261,7 +247,7 @@ export function BasicProvider({
                 
                 syncRef.current = new BasicSync('basicdb', { schema: schema });
 
-                syncRef.current.syncable.on('statusChanged', (status: number, url: string) => {
+                syncRef.current.syncable.on('statusChanged', (status: number) => {
                     setDbStatus(getSyncStatus(status) as DBStatus)
                 })
 
