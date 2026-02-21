@@ -27,3 +27,7 @@ export { RemoteDB, RemoteCollection, RemoteDBError, NotAuthenticatedError } from
 
 // Storage utilities
 export { STORAGE_KEYS } from "./utils/storage"
+
+// DID resolution
+export { resolveDid, resolveHandle, resolveDidWebUrl } from "./utils/resolveDid"
+export type { ResolvedDid } from "./utils/resolveDid"

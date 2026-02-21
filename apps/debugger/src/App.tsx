@@ -5,6 +5,7 @@ import './App.css'
 import Editor from '@monaco-editor/react'
 
 import { validateSchema, compareSchemas, validateUpdateSchema } from "@basictech/schema"
+import { resolveDid, resolveHandle } from "@basictech/react"
 
 function App() {
   const [projectId, setProjectId] = useState('bd1e08c6-25d0-44eb-bf5a-53922874b5e8')
@@ -17,6 +18,12 @@ function App() {
   const [updateValidationResult, setUpdateValidationResult] = useState(null)
   const editorRef = useRef(null)
   const decorationIdsRef = useRef([])
+
+  // DID resolver state
+  const [resolveInput, setResolveInput] = useState('')
+  const [resolveResult, setResolveResult] = useState(null)
+  const [resolveError, setResolveError] = useState(null)
+  const [resolving, setResolving] = useState(false)
 
   useEffect(() => {
     if (editedSchema && schema) {
@@ -135,6 +142,26 @@ function App() {
     console.log(schema)
     const valid = validateSchema(schema)
     console.log(valid)
+  }
+
+  const handleResolve = async () => {
+    if (!resolveInput.trim()) return
+    setResolving(true)
+    setResolveError(null)
+    setResolveResult(null)
+    try {
+      const input = resolveInput.trim()
+      const result = input.startsWith('did:')
+        ? await resolveDid(input)
+        : await resolveHandle(input)
+      setResolveResult(result)
+      console.log('Resolve result:', result)
+    } catch (err) {
+      setResolveError(err.message || 'Resolution failed')
+      console.error('Resolve error:', err)
+    } finally {
+      setResolving(false)
+    }
   }
 
   return (
@@ -266,6 +293,109 @@ function App() {
           overflow: 'auto'
         }}>
           <h2 style={{ margin: '0 0 1rem 0' }}>Debug Tools</h2>
+
+          {/* DID / Handle Resolver */}
+          <div style={{
+            background: '#2a2a2a',
+            borderRadius: '4px',
+            border: '1px solid #333',
+            overflow: 'hidden',
+            marginBottom: '1rem'
+          }}>
+            <div style={{
+              padding: '0.75rem 1rem',
+              borderBottom: '1px solid #333',
+              fontSize: '0.9rem',
+              fontWeight: 500,
+              color: '#fff'
+            }}>
+              DID / Handle Resolver
+            </div>
+            <div style={{ padding: '0.75rem 1rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                <input
+                  type="text"
+                  value={resolveInput}
+                  onChange={(e) => setResolveInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleResolve()}
+                  placeholder="alice.basic.id or did:web:..."
+                  style={{
+                    flex: 1,
+                    padding: '0.5rem',
+                    borderRadius: '4px',
+                    border: '1px solid #333',
+                    background: '#1a1a1a',
+                    color: 'white',
+                    fontSize: '0.85rem'
+                  }}
+                />
+                <button
+                  onClick={handleResolve}
+                  disabled={resolving || !resolveInput.trim()}
+                  style={{
+                    opacity: resolving || !resolveInput.trim() ? 0.5 : 1,
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {resolving ? 'Resolving...' : 'Resolve'}
+                </button>
+              </div>
+              {resolveError && (
+                <div style={{
+                  color: '#ff4444',
+                  fontSize: '0.85rem',
+                  padding: '0.5rem',
+                  background: 'rgba(255, 68, 68, 0.1)',
+                  borderRadius: '4px',
+                  marginBottom: '0.5rem'
+                }}>
+                  {resolveError}
+                </div>
+              )}
+              {resolveResult && (
+                <div style={{ fontSize: '0.85rem', color: '#ccc' }}>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <span style={{ color: '#888' }}>DID: </span>
+                    <span style={{ color: '#4caf50', wordBreak: 'break-all' }}>{resolveResult.did}</span>
+                  </div>
+                  {resolveResult.handle && (
+                    <div style={{ marginBottom: '0.5rem' }}>
+                      <span style={{ color: '#888' }}>Handle: </span>
+                      <span style={{ color: '#fff' }}>{resolveResult.handle}</span>
+                    </div>
+                  )}
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <span style={{ color: '#888' }}>PDS: </span>
+                    <span style={{ color: '#42a5f5', wordBreak: 'break-all' }}>{resolveResult.pdsUrl}</span>
+                  </div>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <span style={{ color: '#888' }}>Auth: </span>
+                    <span style={{ color: '#42a5f5', wordBreak: 'break-all' }}>{resolveResult.authorization_endpoint}</span>
+                  </div>
+                  <div style={{ marginBottom: '0.5rem' }}>
+                    <span style={{ color: '#888' }}>Token: </span>
+                    <span style={{ color: '#42a5f5', wordBreak: 'break-all' }}>{resolveResult.token_endpoint}</span>
+                  </div>
+                  <details style={{ marginTop: '0.5rem' }}>
+                    <summary style={{ cursor: 'pointer', color: '#888', fontSize: '0.85rem' }}>DID Document</summary>
+                    <pre style={{
+                      background: '#1a1a1a',
+                      padding: '0.5rem',
+                      borderRadius: '4px',
+                      marginTop: '0.5rem',
+                      overflow: 'auto',
+                      maxHeight: '300px',
+                      fontSize: '0.8rem',
+                      color: '#aaa'
+                    }}>
+                      {JSON.stringify(resolveResult.didDocument, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              )}
+            </div>
+          </div>
+
           {validationResult && (
             <div style={{
               background: '#2a2a2a',

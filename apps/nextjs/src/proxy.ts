@@ -5,7 +5,7 @@ import type { NextRequest } from 'next/server'
  * Basic middleware for auth token checking
  * Uses the cookie set by BasicProvider
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   // Get token from cookie

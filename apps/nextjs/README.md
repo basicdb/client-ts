@@ -14,7 +14,7 @@ npm run lint
 
 - `src/app/providers.tsx`: wires `BasicProvider`.
 - `src/app/components.tsx`: SDK dashboard/test UI.
-- `src/middleware.ts`: sample app-level middleware.
+- `src/proxy.ts`: sample app-level proxy/auth gate.
 - `basic.config.ts`: local schema and project config.
 
 ## Notes
