@@ -11,6 +11,7 @@ import { getMigrations } from './updater/updateMigrations'
 import { BasicStorage, LocalStorageAdapter, STORAGE_KEYS, getCookie, setCookie, clearCookie } from './utils/storage'
 import { isDevelopment, checkForNewVersion, cleanOAuthParamsFromUrl, getSyncStatus } from './utils/network'
 import { validateAndCheckSchema } from './utils/schema'
+import { normalizeClientId } from './utils/normalizeClientId'
 
 export type { BasicStorage, LocalStorageAdapter } from './utils/storage'
 export type { DBMode, BasicDB, Collection } from './core/db'
@@ -562,7 +563,7 @@ export function BasicProvider({
             log('Stored redirect_uri for token exchange:', redirectUrl)
 
             let baseUrl = `${authConfig.server_url}/auth/authorize`
-            baseUrl += `?client_id=${project_id}`
+            baseUrl += `?client_id=${encodeURIComponent(normalizeClientId(project_id))}`
             baseUrl += `&redirect_uri=${encodeURIComponent(redirectUrl)}`
             baseUrl += `&response_type=code`
             baseUrl += `&scope=${encodeURIComponent(scopesString)}`
@@ -804,9 +805,8 @@ export function BasicProvider({
                         grant_type: 'refresh_token',
                         refresh_token: codeOrRefreshToken
                     }
-                    // Include client_id if available for validation
                     if (project_id) {
-                        requestBody.client_id = project_id
+                        requestBody.client_id = normalizeClientId(project_id)
                     }
                 } else {
                     // Authorization code exchange
@@ -815,7 +815,6 @@ export function BasicProvider({
                         code: codeOrRefreshToken
                     }
                     
-                    // Retrieve stored redirect_uri (required by OAuth2 spec)
                     const storedRedirectUri = await storageAdapter.get(STORAGE_KEYS.REDIRECT_URI)
                     if (storedRedirectUri) {
                         requestBody.redirect_uri = storedRedirectUri
@@ -824,9 +823,8 @@ export function BasicProvider({
                         log('Warning: No redirect_uri found in storage for token exchange')
                     }
                     
-                    // Include client_id for validation
                     if (project_id) {
-                        requestBody.client_id = project_id
+                        requestBody.client_id = normalizeClientId(project_id)
                     }
                 }
 
