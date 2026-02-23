@@ -33,21 +33,9 @@ export function resolveDidWebUrl(did: string): string | null {
 }
 
 /**
- * Fetch a DID document, extract the PDS URL, and discover OAuth endpoints.
+ * Given a DID document, extract PDS URL and discover OAuth endpoints.
  */
-export async function resolveDid(did: string): Promise<ResolvedDid> {
-  const url = resolveDidWebUrl(did)
-  if (!url) {
-    throw new Error(`Unsupported DID method: ${did}`)
-  }
-
-  const didRes = await fetch(url)
-  if (!didRes.ok) {
-    throw new Error(`Failed to fetch DID document at ${url}: ${didRes.status}`)
-  }
-  const didDocument = await didRes.json()
-
-  // Extract PDS URL from the #basic_pds service entry
+async function resolveFromDocument(did: string, didDocument: Record<string, unknown>): Promise<ResolvedDid> {
   const services = didDocument.service as Array<{ id: string; type: string; serviceEndpoint: string }> | undefined
   const pdsService = services?.find(
     (s) => s.id === '#basic_pds' || s.id === `${did}#basic_pds`
@@ -57,7 +45,6 @@ export async function resolveDid(did: string): Promise<ResolvedDid> {
   }
   const pdsUrl = pdsService.serviceEndpoint.replace(/\/+$/, '')
 
-  // Fetch OAuth discovery from the PDS
   const oauthRes = await fetch(`${pdsUrl}/auth/.well-known/openid-configuration`)
   if (!oauthRes.ok) {
     throw new Error(`Failed to fetch OpenID configuration from ${pdsUrl}: ${oauthRes.status}`)
@@ -75,26 +62,40 @@ export async function resolveDid(did: string): Promise<ResolvedDid> {
 }
 
 /**
+ * Fetch a DID document by DID, extract the PDS URL, and discover OAuth endpoints.
+ */
+export async function resolveDid(did: string): Promise<ResolvedDid> {
+  const url = resolveDidWebUrl(did)
+  if (!url) {
+    throw new Error(`Unsupported DID method: ${did}`)
+  }
+
+  const didRes = await fetch(url)
+  if (!didRes.ok) {
+    throw new Error(`Failed to fetch DID document at ${url}: ${didRes.status}`)
+  }
+  const didDocument = await didRes.json()
+
+  return resolveFromDocument(did, didDocument)
+}
+
+/**
  * Resolve a handle (e.g. "alice.basic.id") to a DID and discover PDS + OAuth endpoints.
  *
- * Extracts the domain from the handle and calls
- * GET https://{domain}/auth/handle/resolve?handle={handle}
+ * Fetches https://{handle} which returns the DID document directly.
  */
 export async function resolveHandle(handle: string): Promise<ResolvedDid> {
-  const dotIndex = handle.indexOf('.')
-  if (dotIndex === -1) {
-    throw new Error(`Invalid handle format: ${handle}`)
-  }
-  const domain = handle.slice(dotIndex + 1)
-
-  const resolveUrl = `https://${domain}/auth/handle/resolve?handle=${encodeURIComponent(handle)}`
-  const res = await fetch(resolveUrl)
+  const res = await fetch(`https://${handle}`)
   if (!res.ok) {
     throw new Error(`Handle resolution failed for ${handle}: ${res.status}`)
   }
-  const { did } = (await res.json()) as { did: string; handle: string }
+  const didDocument = await res.json()
+  const did = didDocument.id as string
+  if (!did) {
+    throw new Error(`Handle response has no 'id' field`)
+  }
 
-  const resolved = await resolveDid(did)
+  const resolved = await resolveFromDocument(did, didDocument)
   resolved.handle = handle
   return resolved
 }

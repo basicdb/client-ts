@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import './App.css'
 
-import { useBasic, useQuery, DBMode, STORAGE_KEYS } from "@basictech/react"
+import { useBasic, useQuery, DBMode, STORAGE_KEYS, resolveDid, resolveHandle, type ResolvedDid } from "@basictech/react"
 
 // Helper to set dbMode in URL (triggers page reload)
 const setDbModeInUrl = (mode: DBMode) => {
@@ -51,6 +51,10 @@ function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [queryId, setQueryId] = useState('')
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null)
+  const [resolveInput, setResolveInput] = useState('')
+  const [resolveResult, setResolveResult] = useState<ResolvedDid | null>(null)
+  const [resolveError, setResolveError] = useState<string | null>(null)
+  const [isResolving, setIsResolving] = useState(false)
 
   // Load storage values
   const refreshStorageValues = useCallback(() => {
@@ -65,6 +69,19 @@ function App() {
   useEffect(() => {
     refreshStorageValues()
   }, [isSignedIn, isReady, refreshStorageValues])
+
+  // Auto-fetch token and pre-fill DID resolver on sign-in
+  useEffect(() => {
+    if (isSignedIn && !accessToken) {
+      getToken().then((token) => {
+        setAccessToken(token)
+        const decoded = decodeToken(token)
+        if (decoded?.sub && decoded.sub.startsWith('did:')) {
+          setResolveInput(decoded.sub)
+        }
+      }).catch(() => {})
+    }
+  }, [isSignedIn])
   
   // For sync mode, use live query
   const syncFooItems = useQuery(() => dbMode === 'sync' ? db.collection('foo').getAll() : Promise.resolve([]))
@@ -168,6 +185,27 @@ function App() {
       console.log('signInWithCode() result:', result)
     } catch (error) {
       console.error('signInWithCode() error:', error)
+    }
+  }
+
+  const testResolveDid = async () => {
+    const input = resolveInput.trim()
+    if (!input) return
+    setIsResolving(true)
+    setResolveError(null)
+    setResolveResult(null)
+    try {
+      const result = input.startsWith('did:')
+        ? await resolveDid(input)
+        : await resolveHandle(input)
+      setResolveResult(result)
+      console.log('resolve result:', result)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      setResolveError(msg)
+      console.error('resolve error:', error)
+    } finally {
+      setIsResolving(false)
     }
   }
 
@@ -471,21 +509,77 @@ function App() {
             </div>
           </div>
 
-          {/* Access Token */}
-          {accessToken && (
-            <div className="panel">
-              <div className="panel-header">
-                <span className="panel-title">Access Token</span>
-                <button 
-                  className="icon-btn small" 
-                  onClick={() => setAccessToken(null)}
-                  title="Clear"
-                  style={{ width: 24, height: 24, fontSize: 12 }}
-                >
-                  ✕
+          {/* DID Resolver */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">DID Resolver</span>
+            </div>
+            <div className="panel-body">
+              <div className="form-row" style={{ marginBottom: 'var(--space-2)' }}>
+                <input
+                  type="text"
+                  placeholder="handle or did:web:..."
+                  value={resolveInput}
+                  onChange={(e) => setResolveInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && testResolveDid()}
+                  style={{ flex: 1 }}
+                />
+                <button onClick={testResolveDid} disabled={isResolving || !resolveInput.trim()}>
+                  {isResolving ? '...' : 'Resolve'}
                 </button>
               </div>
-              <div className="panel-body">
+              {resolveError && (
+                <div style={{ color: 'var(--accent-error)', fontSize: 12, marginBottom: 'var(--space-2)' }}>
+                  {resolveError}
+                </div>
+              )}
+              {resolveResult && (
+                <div className="user-info">
+                  <div className="user-info-row">
+                    <span className="user-info-label">did</span>
+                    <span style={{ wordBreak: 'break-all', fontSize: 11 }}>{resolveResult.did}</span>
+                  </div>
+                  {(() => {
+                    const aka = (resolveResult.didDocument.alsoKnownAs as string[] | undefined)
+                      ?.find(s => s.startsWith('basic://'))?.replace('basic://', '')
+                    const handle = resolveResult.handle || aka
+                    return handle ? (
+                      <div className="user-info-row">
+                        <span className="user-info-label">handle</span>
+                        <span>{handle}</span>
+                      </div>
+                    ) : null
+                  })()}
+                  <div className="user-info-row">
+                    <span className="user-info-label">pds</span>
+                    <span style={{ wordBreak: 'break-all', fontSize: 11 }}>{resolveResult.pdsUrl}</span>
+                  </div>
+                  <details style={{ marginTop: 'var(--space-2)' }}>
+                    <summary style={{ cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)' }}>DID Document</summary>
+                    <pre style={{ margin: 0, marginTop: 'var(--space-1)', fontSize: 10, overflow: 'auto' }}>
+                      {JSON.stringify(resolveResult.didDocument, null, 2)}
+                    </pre>
+                  </details>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Access Token */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">Access Token</span>
+              <button 
+                className="icon-btn small" 
+                onClick={testGetToken}
+                title="Refresh token"
+                style={{ width: 24, height: 24, fontSize: 12 }}
+              >
+                ↻
+              </button>
+            </div>
+            <div className="panel-body">
+              {accessToken ? (
                 <div className="token-display">
                   <div className="token-raw">
                     <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Raw (truncated):</span>
@@ -498,9 +592,11 @@ function App() {
                     </div>
                   )}
                 </div>
-              </div>
+              ) : (
+                <div className="empty-state">No token</div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Sign In With Code */}
           <div className="panel">
