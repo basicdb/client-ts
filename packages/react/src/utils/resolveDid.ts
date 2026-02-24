@@ -82,10 +82,10 @@ export async function resolveDid(did: string): Promise<ResolvedDid> {
 /**
  * Resolve a handle (e.g. "alice.basic.id") to a DID and discover PDS + OAuth endpoints.
  *
- * Fetches https://{handle} which returns the DID document directly.
+ * Fetches https://{handle}/.well-known/did.json per the did:web spec.
  */
 export async function resolveHandle(handle: string): Promise<ResolvedDid> {
-  const res = await fetch(`https://${handle}`)
+  const res = await fetch(`https://${handle}/.well-known/did.json`)
   if (!res.ok) {
     throw new Error(`Handle resolution failed for ${handle}: ${res.status}`)
   }

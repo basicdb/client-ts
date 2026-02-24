@@ -91,21 +91,27 @@ export type BasicContextType = {
     isReady: boolean;
     isSignedIn: boolean;
     user: User | null;
-    
+    /** The user's DID (Decentralized Identifier), extracted from the access token `sub` claim */
+    did: string | null;
+    /** Space-separated scope string from the access token */
+    scope: string | null;
+    /** Check if a specific scope is granted (e.g., hasScope('profile')) */
+    hasScope: (scope: string) => boolean;
+
     // Auth actions (new camelCase naming)
     signIn: () => Promise<void>;
     signOut: () => Promise<void>;
     signInWithCode: (code: string, state?: string) => Promise<AuthResult>;
-    
+
     // Token management
     getToken: () => Promise<string>;
     getSignInUrl: (redirectUri?: string) => Promise<string>;
-    
+
     // DB access
     db: BasicDB;
     dbStatus: DBStatus;
     dbMode: DBMode;
-    
+
     // Legacy aliases (deprecated - will be removed in future version)
     /** @deprecated Use isReady instead */
     isAuthReady: boolean;
@@ -130,21 +136,24 @@ export const BasicContext = createContext<BasicContextType>({
     isReady: false,
     isSignedIn: false,
     user: null,
-    
+    did: null,
+    scope: null,
+    hasScope: () => false,
+
     // Auth actions
     signIn: () => Promise.resolve(),
     signOut: () => Promise.resolve(),
     signInWithCode: () => Promise.resolve({ success: false }),
-    
+
     // Token management
     getToken: () => Promise.reject(new Error('no token')),
     getSignInUrl: () => Promise.resolve(""),
-    
+
     // DB access
     db: noDb,
     dbStatus: DBStatus.LOADING,
     dbMode: 'sync',
-    
+
     // Legacy aliases
     isAuthReady: false,
     signin: () => Promise.resolve(),
@@ -175,6 +184,8 @@ export function BasicProvider({
     const [isSignedIn, setIsSignedIn] = useState<boolean>(false)
     const [token, setToken] = useState<Token | null>(null)
     const [user, setUser] = useState<User>({})
+    const [did, setDid] = useState<string | null>(null)
+    const [tokenScope, setTokenScope] = useState<string | null>(null)
     const [shouldConnect, setShouldConnect] = useState<boolean>(false)
     const [isReady, setIsReady] = useState<boolean>(false)
 
@@ -505,7 +516,16 @@ export function BasicProvider({
                 return
             }
 
-            const decoded = jwtDecode(token?.access_token)
+            const decoded = jwtDecode<{ sub?: string; scope?: string; typ?: string; exp?: number }>(token?.access_token)
+
+            // Extract DID and scope from token claims
+            if (decoded.sub) {
+                setDid(decoded.sub)
+            }
+            if (decoded.scope) {
+                setTokenScope(decoded.scope)
+            }
+
             // Add 5 second buffer to prevent edge cases
             const expirationBuffer = 5
             const isExpired = decoded.exp && decoded.exp < (Date.now() / 1000) + expirationBuffer
@@ -656,6 +676,8 @@ export function BasicProvider({
         setUser({})
         setIsSignedIn(false)
         setToken(null)
+        setDid(null)
+        setTokenScope(null)
 
         clearCookie('basic_token');
         clearCookie('basic_access_token');
@@ -847,6 +869,23 @@ export function BasicProvider({
                         throw new Error('Network error during token refresh')
                     })
 
+                // Defensive typ check: ensure the access token isn't a refresh token
+                if (token.access_token) {
+                    try {
+                        const decoded = jwtDecode<{ typ?: string }>(token.access_token)
+                        if (decoded.typ === 'refresh') {
+                            log('Error: received refresh token as access token')
+                            throw new Error('Invalid token: received refresh token instead of access token')
+                        }
+                    } catch (decodeError) {
+                        // If jwtDecode fails, the token is malformed — let downstream handle it
+                        if ((decodeError as Error).message.includes('Invalid token')) {
+                            throw decodeError
+                        }
+                        log('Warning: could not decode access token for typ check:', decodeError)
+                    }
+                }
+
                 if (token.error) {
                     log('error fetching token', token.error)
 
@@ -933,27 +972,36 @@ export function BasicProvider({
         return syncRef.current || noDb
     }
 
+    const hasScope = (scope: string): boolean => {
+        if (!tokenScope) return false
+        const scopes = tokenScope.split(' ')
+        return scopes.includes(scope)
+    }
+
     // Create context value with new names and legacy aliases
     const contextValue: BasicContextType = {
         // Auth state (new naming)
         isReady: isAuthReady,
         isSignedIn,
         user,
-        
+        did,
+        scope: tokenScope,
+        hasScope,
+
         // Auth actions (new camelCase naming)
         signIn: signin,
         signOut: signout,
         signInWithCode: signinWithCode,
-        
+
         // Token management
         getToken,
         getSignInUrl: getSignInLink,
-        
+
         // DB access
         db: getCurrentDb(),
         dbStatus,
         dbMode,
-        
+
         // Legacy aliases (deprecated)
         isAuthReady,
         signin,

@@ -1,7 +1,37 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
 
 import { useBasic, useQuery, DBMode, STORAGE_KEYS, resolveDid, resolveHandle, type ResolvedDid } from "@basictech/react"
+
+// Random name generator
+const adjectives = [
+  "abandoned", "acoustic", "adorable", "ancient", "bitter", "black", "blue", "brave", "breezy",
+  "bright", "broken", "brown", "calm", "chilly", "clever", "cold", "cool", "crooked", "curved",
+  "damp", "dazzling", "deep", "elegant", "faint", "fancy", "fast", "fierce", "flat", "fluffy",
+  "freezing", "fresh", "gentle", "gigantic", "golden", "gray", "green", "grumpy", "hollow", "hot",
+  "huge", "icy", "jolly", "lazy", "little", "lively", "long", "loud", "melted", "modern", "narrow",
+  "odd", "orange", "plain", "proud", "purple", "quick", "quiet", "rapid", "red", "rich", "rough",
+  "round", "rusty", "salty", "sharp", "short", "shy", "silent", "slow", "small", "smooth", "steep",
+  "sticky", "strong", "swift", "tall", "tangy", "tight", "tiny", "warm", "weak", "wet", "white",
+  "wide", "wild", "wooden", "yellow", "young",
+]
+const nouns = [
+  "alligator", "balloon", "banana", "bear", "bird", "book", "camera", "candle", "car", "carpet",
+  "cat", "cloud", "crayon", "cricket", "crow", "diamond", "dog", "dolphin", "dragon", "dream",
+  "eagle", "egg", "elephant", "engine", "falcon", "fish", "flower", "forest", "fountain", "fox",
+  "ghost", "guitar", "hammer", "hawk", "helmet", "horse", "insect", "island", "jackal", "kangaroo",
+  "kite", "lamp", "lantern", "leopard", "lion", "lizard", "machine", "monkey", "moon", "mouse",
+  "needle", "nest", "notebook", "ocean", "owl", "oyster", "parrot", "pencil", "piano", "pillow",
+  "planet", "rabbit", "rainbow", "raven", "river", "rocket", "rose", "sail", "sandwich", "shadow",
+  "sparrow", "spider", "stone", "storm", "sun", "table", "tiger", "train", "tree", "turtle",
+  "umbrella", "vase", "vulture", "whale", "window", "wolf", "yak", "zebra",
+]
+const randomName = () => {
+  const adj = adjectives[Math.floor(Math.random() * adjectives.length)]
+  const noun = nouns[Math.floor(Math.random() * nouns.length)]
+  const num = Math.floor(Math.random() * 100)
+  return `${adj}-${noun}-${num}`
+}
 
 // Helper to set dbMode in URL (triggers page reload)
 const setDbModeInUrl = (mode: DBMode) => {
@@ -27,6 +57,26 @@ interface QueryResult {
 
 type StorageValues = Record<string, string | null>
 
+// Event log types
+interface LogEntry {
+  id: number
+  timestamp: number
+  type: 'status' | 'operation' | 'network' | 'error'
+  message: string
+  detail?: string
+  duration?: number
+}
+
+// Performance timing types
+interface OpTiming {
+  operation: string
+  duration: number
+  timestamp: number
+  success: boolean
+}
+
+let logIdCounter = 0
+
 function App() {
   const { 
     db, 
@@ -43,6 +93,7 @@ function App() {
   } = useBasic()
   
   const [newFooItem, setNewFooItem] = useState({ name: '', count: 0, is_done: false })
+  const [placeholder, setPlaceholder] = useState({ name: randomName(), count: Math.floor(Math.random() * 100) })
   const [authCode, setAuthCode] = useState('')
   const [authState, setAuthState] = useState('')
   const [remoteFooItems, setRemoteFooItems] = useState<FooItem[]>([])
@@ -51,10 +102,103 @@ function App() {
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [queryId, setQueryId] = useState('')
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null)
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
   const [resolveInput, setResolveInput] = useState('')
   const [resolveResult, setResolveResult] = useState<ResolvedDid | null>(null)
   const [resolveError, setResolveError] = useState<string | null>(null)
   const [isResolving, setIsResolving] = useState(false)
+
+  // Event log & performance state
+  const [eventLog, setEventLog] = useState<LogEntry[]>([])
+  const [opTimings, setOpTimings] = useState<OpTiming[]>([])
+  const [isOffline, setIsOffline] = useState(!navigator.onLine)
+  const prevDbStatus = useRef(dbStatus)
+  const statusChangeTime = useRef(performance.now())
+
+  // Add entry to event log
+  const addLog = useCallback((type: LogEntry['type'], message: string, detail?: string, duration?: number) => {
+    setEventLog(prev => {
+      const entry: LogEntry = { id: ++logIdCounter, timestamp: Date.now(), type, message, detail, duration }
+      const next = [...prev, entry]
+      return next.length > 200 ? next.slice(-200) : next
+    })
+  }, [])
+
+  // Wrap a DB operation with timing
+  const timed = useCallback(async <T,>(name: string, fn: () => Promise<T>): Promise<T> => {
+    const start = performance.now()
+    try {
+      const result = await fn()
+      const duration = performance.now() - start
+      const detail = Array.isArray(result) ? `${result.length} items` : result === null ? 'null' : 'ok'
+      addLog('operation', `${name}`, detail, duration)
+      setOpTimings(prev => {
+        const next = [...prev, { operation: name, duration, timestamp: Date.now(), success: true }]
+        return next.length > 50 ? next.slice(-50) : next
+      })
+      return result
+    } catch (error) {
+      const duration = performance.now() - start
+      addLog('error', `${name} failed`, error instanceof Error ? error.message : String(error), duration)
+      setOpTimings(prev => {
+        const next = [...prev, { operation: name, duration, timestamp: Date.now(), success: false }]
+        return next.length > 50 ? next.slice(-50) : next
+      })
+      throw error
+    }
+  }, [addLog])
+
+  // Track dbStatus changes with timing
+  useEffect(() => {
+    if (dbStatus !== prevDbStatus.current) {
+      const now = performance.now()
+      const duration = now - statusChangeTime.current
+      const prev = prevDbStatus.current
+      addLog('status', `${prev} → ${dbStatus}`, `${prev} lasted`, duration)
+      setOpTimings(t => {
+        const next = [...t, { operation: `sync: ${prev} → ${dbStatus}`, duration, timestamp: Date.now(), success: dbStatus !== 'ERROR' }]
+        return next.length > 50 ? next.slice(-50) : next
+      })
+      prevDbStatus.current = dbStatus
+      statusChangeTime.current = now
+    }
+  }, [dbStatus, addLog])
+
+  // Track network online/offline
+  useEffect(() => {
+    const onOnline = () => { setIsOffline(false); addLog('network', 'Back online') }
+    const onOffline = () => { setIsOffline(true); addLog('network', 'Went offline') }
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    return () => { window.removeEventListener('online', onOnline); window.removeEventListener('offline', onOffline) }
+  }, [addLog])
+
+
+  // Simulate offline/online toggle
+  const toggleOffline = () => {
+    if (!isOffline) {
+      addLog('network', 'Simulating offline (DevTools recommended for full simulation)')
+      window.dispatchEvent(new Event('offline'))
+    } else {
+      addLog('network', 'Simulating online')
+      window.dispatchEvent(new Event('online'))
+    }
+  }
+
+  // Clear all local data (localStorage, IndexedDB, sessionStorage)
+  const clearAllLocalData = async () => {
+    if (!confirm('Clear all local data? This will remove localStorage, sessionStorage, and all IndexedDB databases, then reload.')) return
+    localStorage.clear()
+    sessionStorage.clear()
+    if (window.indexedDB.databases) {
+      const dbs = await window.indexedDB.databases()
+      for (const db of dbs) {
+        if (db.name) window.indexedDB.deleteDatabase(db.name)
+      }
+    }
+    addLog('operation', 'Cleared all local data')
+    setTimeout(() => window.location.reload(), 300)
+  }
 
   // Load storage values
   const refreshStorageValues = useCallback(() => {
@@ -94,7 +238,7 @@ function App() {
     if (dbMode !== 'remote') return
     setIsRefreshing(true)
     try {
-      const items = await db.collection<FooItem>('foo').getAll()
+      const items = await timed('foo.getAll()', () => db.collection<FooItem>('foo').getAll())
       setRemoteFooItems(items)
       console.log('foo.getAll() refreshed:', items)
     } catch (error) {
@@ -102,7 +246,7 @@ function App() {
     } finally {
       setIsRefreshing(false)
     }
-  }, [db, dbMode])
+  }, [db, dbMode, timed])
 
   // Auto-fetch on mount for remote mode
   useEffect(() => {
@@ -120,15 +264,15 @@ function App() {
   // Foo Collection Functions (matches schema: name, count, is_done, data)
   const addFooItem = async () => {
     try {
-      // Default to random values if inputs are empty
-      const result = await db.collection('foo').add({
-        name: newFooItem.name || `item_${Math.floor(Math.random() * 10000)}`,
-        count: newFooItem.count || Math.floor(Math.random() * 100),
+      const result = await timed('foo.add()', () => db.collection('foo').add({
+        name: newFooItem.name || placeholder.name,
+        count: newFooItem.count || placeholder.count,
         is_done: newFooItem.is_done,
         data: { created: Date.now() }
-      })
+      }))
       console.log('foo.add() result:', result)
       setNewFooItem({ name: '', count: 0, is_done: false })
+      setPlaceholder({ name: randomName(), count: Math.floor(Math.random() * 100) })
       if (dbMode === 'remote') refreshFooItems()
     } catch (error) {
       console.error('foo.add() error:', error)
@@ -137,10 +281,10 @@ function App() {
 
   const updateFooItem = async (id: string) => {
     try {
-      const result = await db.collection('foo').update(id, {
+      const result = await timed('foo.update()', () => db.collection('foo').update(id, {
         count: Math.floor(Math.random() * 100),
         is_done: Math.random() > 0.5
-      })
+      }))
       console.log('foo.update() result:', result)
       if (dbMode === 'remote') refreshFooItems()
     } catch (error) {
@@ -150,7 +294,7 @@ function App() {
 
   const deleteFooItem = async (id: string) => {
     try {
-      const result = await db.collection('foo').delete(id)
+      const result = await timed('foo.delete()', () => db.collection('foo').delete(id))
       console.log('foo.delete() result:', result)
       if (dbMode === 'remote') refreshFooItems()
     } catch (error) {
@@ -213,7 +357,7 @@ function App() {
   const testGetById = async () => {
     if (!queryId.trim()) return
     try {
-      const result = await db.collection<FooItem>('foo').get(queryId.trim())
+      const result = await timed('foo.get()', () => db.collection<FooItem>('foo').get(queryId.trim()))
       console.log('foo.get() result:', result)
       setQueryResult({ type: 'get', data: result })
     } catch (error) {
@@ -224,7 +368,7 @@ function App() {
 
   const testFilterDone = async () => {
     try {
-      const result = await db.collection<FooItem>('foo').filter((item) => item.is_done === true)
+      const result = await timed('foo.filter(done)', () => db.collection<FooItem>('foo').filter((item) => item.is_done === true))
       console.log('foo.filter(is_done=true) result:', result)
       setQueryResult({ type: 'filter', data: result })
     } catch (error) {
@@ -235,7 +379,7 @@ function App() {
 
   const testFilterNotDone = async () => {
     try {
-      const result = await db.collection<FooItem>('foo').filter((item) => item.is_done === false)
+      const result = await timed('foo.filter(!done)', () => db.collection<FooItem>('foo').filter((item) => item.is_done === false))
       console.log('foo.filter(is_done=false) result:', result)
       setQueryResult({ type: 'filter', data: result })
     } catch (error) {
@@ -289,44 +433,55 @@ function App() {
         <div className="column">
           <h2>Database</h2>
           
-          {/* DB Mode Toggle */}
+          {/* Mode & Network */}
           <div className="panel">
             <div className="panel-header">
-              <span className="panel-title">Mode</span>
+              <span className="panel-title">Mode & Network</span>
             </div>
             <div className="panel-body">
-              <div className="status-grid">
+              <div className="toggle-group">
+                <button
+                  className={`toggle-btn ${dbMode === 'sync' ? 'active' : ''}`}
+                  onClick={() => dbMode !== 'sync' && toggleDbMode()}
+                >
+                  Sync
+                </button>
+                <button
+                  className={`toggle-btn ${dbMode === 'remote' ? 'active' : ''}`}
+                  onClick={() => dbMode !== 'remote' && toggleDbMode()}
+                >
+                  Remote
+                </button>
+              </div>
+              <div className="status-grid" style={{ marginTop: 'var(--space-3)' }}>
                 <div className="status-item">
-                  <span className="status-label">dbMode</span>
-                  <span className={`status-value ${dbMode === 'sync' ? 'success' : 'pending'}`}>
-                    {dbMode}
+                  <span className="status-label">dbStatus</span>
+                  <span className={`status-value ${dbStatus === 'ONLINE' ? 'success' : dbStatus === 'ERROR' ? 'error' : 'pending'}`}>
+                    {dbStatus}
                   </span>
                 </div>
                 <div className="status-item">
-                  <span className="status-label">dbStatus</span>
-                  <span className="status-value">{dbStatus}</span>
+                  <span className="status-label">Network</span>
+                  <span className={`status-value ${isOffline ? 'error' : 'success'}`}>
+                    {isOffline ? 'Offline' : 'Online'}
+                  </span>
                 </div>
               </div>
               <div className="form-row" style={{ marginTop: 'var(--space-3)' }}>
-                <button 
-                  className={dbMode === 'sync' ? 'primary' : ''} 
-                  onClick={() => dbMode !== 'sync' && toggleDbMode()}
-                  disabled={dbMode === 'sync'}
+                <button
+                  className={`small ${isOffline ? '' : 'danger'}`}
+                  onClick={toggleOffline}
+                  style={{ flex: 1 }}
                 >
-                  Sync Mode
+                  {isOffline ? 'Go Online' : 'Simulate Offline'}
                 </button>
-                <button 
-                  className={dbMode === 'remote' ? 'primary' : ''} 
-                  onClick={() => dbMode !== 'remote' && toggleDbMode()}
-                  disabled={dbMode === 'remote'}
+                <button
+                  className="small danger"
+                  onClick={clearAllLocalData}
+                  style={{ flex: 1 }}
                 >
-                  Remote Mode
+                  Clear Local Data
                 </button>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 'var(--space-2)' }}>
-                {dbMode === 'sync' 
-                  ? 'Using local IndexedDB + WebSocket sync' 
-                  : 'Using REST API calls directly'}
               </div>
             </div>
           </div>
@@ -356,27 +511,23 @@ function App() {
               <div className="form-row" style={{ marginBottom: 'var(--space-3)' }}>
                 <input 
                   type="text" 
-                  placeholder="name"
+                  placeholder={placeholder.name}
                   value={newFooItem.name}
                   onChange={(e) => setNewFooItem(prev => ({ ...prev, name: e.target.value }))}
                   onKeyDown={(e) => e.key === 'Enter' && addFooItem()}
                   style={{ flex: 1 }}
                 />
-                <input 
-                  type="number" 
-                  placeholder="0"
+                <input
+                  type="number"
+                  placeholder={String(placeholder.count)}
                   value={newFooItem.count || ''}
                   onChange={(e) => setNewFooItem(prev => ({ ...prev, count: Number(e.target.value) || 0 }))}
                   className="number-input"
                 />
-                <button 
-                  className="icon-btn"
+                <button
+                  className={`icon-btn checkbox-btn ${newFooItem.is_done ? 'checked' : ''}`}
                   onClick={() => setNewFooItem(prev => ({ ...prev, is_done: !prev.is_done }))}
                   title={newFooItem.is_done ? 'Mark as not done' : 'Mark as done'}
-                  style={{ 
-                    opacity: newFooItem.is_done ? 1 : 0.4,
-                    fontSize: 16
-                  }}
                 >
                   ✓
                 </button>
@@ -384,24 +535,47 @@ function App() {
                   +
                 </button>
               </div>
+              <div className="item-list-scroll">
               {fooItems?.length === 0 && (
                 <div className="empty-state">No items</div>
               )}
               {fooItems?.map((item) => (
-                <div key={item.id} className="list-item">
-                  <div style={{ flex: 1 }}>
-                    <div className="list-item-text">{item.name || '(no name)'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      count: {item.count} • done: {item.is_done ? '✓' : '✗'}
+                <div key={item.id} className={`list-item-wrap ${expandedItems.has(item.id) ? 'expanded' : ''}`}>
+                  <div className="list-item" onClick={() => setExpandedItems(prev => {
+                    const next = new Set(prev)
+                    next.has(item.id) ? next.delete(item.id) : next.add(item.id)
+                    return next
+                  })}>
+                    <div style={{ flex: 1 }}>
+                      <div className="list-item-text">{item.name || '(no name)'}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        count: {item.count} • done: {item.is_done ? '✓' : '✗'}
+                      </div>
+                    </div>
+                    <span
+                      className="list-item-id"
+                      title="Click to copy full ID"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigator.clipboard.writeText(item.id)
+                        const el = e.currentTarget
+                        el.textContent = 'copied!'
+                        setTimeout(() => { el.textContent = item.id?.slice(0, 8) }, 1000)
+                      }}
+                    >
+                      {item.id?.slice(0, 8)}
+                    </span>
+                    <div className="list-item-actions">
+                      <button className="small" onClick={(e) => { e.stopPropagation(); updateFooItem(item.id) }}>Edit</button>
+                      <button className="small danger" onClick={(e) => { e.stopPropagation(); deleteFooItem(item.id) }}>Del</button>
                     </div>
                   </div>
-                  <span className="list-item-id">{item.id?.slice(0, 8)}</span>
-                  <div className="list-item-actions">
-                    <button className="small" onClick={() => updateFooItem(item.id)}>Edit</button>
-                    <button className="small danger" onClick={() => deleteFooItem(item.id)}>Del</button>
-                  </div>
+                  {expandedItems.has(item.id) && (
+                    <pre className="list-item-json">{JSON.stringify(item, null, 2)}</pre>
+                  )}
                 </div>
               ))}
+              </div>
             </div>
           </div>
 
@@ -449,6 +623,102 @@ function App() {
                   )}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Performance */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">Performance</span>
+              <button
+                className="icon-btn small"
+                onClick={() => setOpTimings([])}
+                title="Clear timings"
+                style={{ width: 24, height: 24, fontSize: 12 }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="panel-body">
+              {opTimings.length === 0 ? (
+                <div className="empty-state">Run some operations to see timings</div>
+              ) : (
+                <>
+                  <div className="perf-summary">
+                    <div className="status-item">
+                      <span className="status-label">Ops</span>
+                      <span className="status-value">{opTimings.length}</span>
+                    </div>
+                    <div className="status-item">
+                      <span className="status-label">Avg</span>
+                      <span className="status-value">
+                        {(opTimings.reduce((s, t) => s + t.duration, 0) / opTimings.length).toFixed(1)}ms
+                      </span>
+                    </div>
+                    <div className="status-item">
+                      <span className="status-label">Min</span>
+                      <span className="status-value success">
+                        {Math.min(...opTimings.map(t => t.duration)).toFixed(1)}ms
+                      </span>
+                    </div>
+                    <div className="status-item">
+                      <span className="status-label">Max</span>
+                      <span className="status-value error">
+                        {Math.max(...opTimings.map(t => t.duration)).toFixed(1)}ms
+                      </span>
+                    </div>
+                  </div>
+                  <div className="perf-list">
+                    {opTimings.slice().reverse().map((t, i) => (
+                      <div key={i} className="perf-entry">
+                        <span className={`perf-dot ${t.success ? '' : 'error'}`} />
+                        <span className="perf-op">{t.operation}</span>
+                        <span className={`perf-duration ${t.duration > 1000 ? 'slow' : t.duration > 100 ? 'medium' : 'fast'}`}>
+                          {t.duration.toFixed(1)}ms
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Event Log */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">Event Log</span>
+              <button
+                className="icon-btn small"
+                onClick={() => setEventLog([])}
+                title="Clear log"
+                style={{ width: 24, height: 24, fontSize: 12 }}
+              >
+                ×
+              </button>
+            </div>
+            <div className="panel-body" style={{ padding: 0 }}>
+              <div className="event-log">
+                {eventLog.length === 0 && (
+                  <div className="empty-state">No events yet</div>
+                )}
+                {eventLog.map((entry) => (
+                  <div key={entry.id} className={`log-entry log-${entry.type}`}>
+                    <span className="log-time">
+                      {new Date(entry.timestamp).toLocaleTimeString('en', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 } as Intl.DateTimeFormatOptions)}
+                    </span>
+                    <span className={`log-badge log-badge-${entry.type}`}>{entry.type}</span>
+                    <span className="log-message">{entry.message}</span>
+                    {entry.detail && <span className="log-detail">{entry.detail}</span>}
+                    {entry.duration !== undefined && (
+                      <span className={`log-duration ${entry.duration! > 1000 ? 'slow' : entry.duration! > 100 ? 'medium' : ''}`}>
+                        {entry.duration.toFixed(1)}ms
+                      </span>
+                    )}
+                  </div>
+                ))}
+
+              </div>
             </div>
           </div>
         </div>
