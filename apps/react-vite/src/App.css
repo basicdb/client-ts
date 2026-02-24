@@ -617,6 +617,67 @@ input[type="number"].number-input {
   color: var(--accent-error);
 }
 
+/* Scope Badges */
+.scope-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.scope-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-primary);
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--radius-sm);
+}
+
+/* Token Countdown */
+.token-countdown {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent-success);
+}
+
+.token-countdown.expired {
+  color: var(--accent-error);
+}
+
+/* Token Claims */
+.token-claims {
+  padding: var(--space-2);
+  background: var(--bg-base);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+}
+
+.token-claim-row {
+  display: flex;
+  gap: var(--space-2);
+  padding: 2px 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.token-claim-label {
+  color: var(--text-muted);
+  min-width: 55px;
+  flex-shrink: 0;
+}
+
+.token-claim-value {
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.token-claim-value.expired {
+  color: var(--accent-error);
+}
+
 /* Token Display */
 .token-display {
   display: flex;

@@ -78,17 +78,20 @@ interface OpTiming {
 let logIdCounter = 0
 
 function App() {
-  const { 
-    db, 
-    dbStatus, 
+  const {
+    db,
+    dbStatus,
     dbMode,
     isReady,
-    isSignedIn, 
-    user, 
+    isSignedIn,
+    user,
+    did,
+    scope,
+    hasScope,
     signOut,
     signIn,
     signInWithCode,
-    getToken, 
+    getToken,
     getSignInUrl
   } = useBasic()
   
@@ -103,6 +106,10 @@ function App() {
   const [queryId, setQueryId] = useState('')
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
+  const [tokenExpiry, setTokenExpiry] = useState<number | null>(null)
+  const [expiryCountdown, setExpiryCountdown] = useState<string>('')
+  const [scopeTestInput, setScopeTestInput] = useState('')
+  const [scopeTestResult, setScopeTestResult] = useState<boolean | null>(null)
   const [resolveInput, setResolveInput] = useState('')
   const [resolveResult, setResolveResult] = useState<ResolvedDid | null>(null)
   const [resolveError, setResolveError] = useState<string | null>(null)
@@ -174,6 +181,21 @@ function App() {
   }, [addLog])
 
 
+  // Token expiry countdown
+  useEffect(() => {
+    if (!tokenExpiry) { setExpiryCountdown(''); return }
+    const tick = () => {
+      const remaining = tokenExpiry * 1000 - Date.now()
+      if (remaining <= 0) { setExpiryCountdown('Expired'); return }
+      const mins = Math.floor(remaining / 60000)
+      const secs = Math.floor((remaining % 60000) / 1000)
+      setExpiryCountdown(`${mins}m ${secs}s`)
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [tokenExpiry])
+
   // Simulate offline/online toggle
   const toggleOffline = () => {
     if (!isOffline) {
@@ -220,10 +242,15 @@ function App() {
       getToken().then((token) => {
         setAccessToken(token)
         const decoded = decodeToken(token)
+        if (decoded?.exp) setTokenExpiry(decoded.exp)
         if (decoded?.sub && decoded.sub.startsWith('did:')) {
           setResolveInput(decoded.sub)
         }
       }).catch(() => {})
+    }
+    if (!isSignedIn) {
+      setTokenExpiry(null)
+      setAccessToken(null)
     }
   }, [isSignedIn])
   
@@ -302,10 +329,10 @@ function App() {
     }
   }
 
-  // Auth Functions
+  // Auth Functions (all timed + logged)
   const testGetSignInUrl = async () => {
     try {
-      const url = await getSignInUrl()
+      const url = await timed('getSignInUrl()', () => getSignInUrl())
       console.log('getSignInUrl() result:', url)
     } catch (error) {
       console.error('getSignInUrl() error:', error)
@@ -314,18 +341,34 @@ function App() {
 
   const testGetToken = async () => {
     try {
-      const token = await getToken()
+      const token = await timed('getToken()', () => getToken())
       console.log('getToken() result:', token)
       setAccessToken(token)
+      const decoded = decodeToken(token)
+      if (decoded?.exp) setTokenExpiry(decoded.exp)
     } catch (error) {
       console.error('getToken() error:', error)
       setAccessToken(null)
+      setTokenExpiry(null)
     }
+  }
+
+  const testSignIn = async () => {
+    addLog('status', 'signIn() initiated')
+    await signIn()
+  }
+
+  const testSignOut = async () => {
+    const start = performance.now()
+    await signOut()
+    addLog('status', 'signOut()', 'ok', performance.now() - start)
+    setAccessToken(null)
+    setTokenExpiry(null)
   }
 
   const testSignInWithCode = async () => {
     try {
-      const result = await signInWithCode(authCode, authState)
+      const result = await timed('signInWithCode()', () => signInWithCode(authCode, authState))
       console.log('signInWithCode() result:', result)
     } catch (error) {
       console.error('signInWithCode() error:', error)
@@ -400,6 +443,12 @@ function App() {
     }
   }
 
+  // Format unix timestamp to readable date
+  const formatTimestamp = (ts: number) => {
+    const d = new Date(ts * 1000)
+    return d.toLocaleString('en', { hour12: false, month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+  }
+
   const getStatusClass = () => {
     if (dbStatus === 'ONLINE') return 'connected'
     if (dbStatus === 'CONNECTING' || dbStatus === 'SYNCING') return 'connecting'
@@ -420,9 +469,9 @@ function App() {
         <div className="header-right">
           {user?.email && <span className="user-email">{user.email}</span>}
           {isSignedIn ? (
-            <button onClick={signOut}>Sign Out</button>
+            <button onClick={testSignOut}>Sign Out</button>
           ) : (
-            <button className="primary" onClick={signIn}>Sign In</button>
+            <button className="primary" onClick={testSignIn}>Sign In</button>
           )}
         </div>
       </header>
@@ -726,8 +775,8 @@ function App() {
         {/* Right Column - Auth */}
         <div className="column">
           <h2>Authentication</h2>
-          
-          {/* Auth Status */}
+
+          {/* Auth Status + Actions (merged) */}
           <div className="panel">
             <div className="panel-header">
               <span className="panel-title">Status</span>
@@ -757,25 +806,161 @@ function App() {
                     <span className="user-info-label">id</span>
                     <span>{user.id}</span>
                   </div>
+                  {did && (
+                    <div className="user-info-row">
+                      <span className="user-info-label">did</span>
+                      <span style={{ fontSize: 10, wordBreak: 'break-all' }}>{did}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="form-row" style={{ marginTop: 'var(--space-3)' }}>
+                {isSignedIn ? (
+                  <button className="danger" onClick={testSignOut} style={{ flex: 1 }}>signOut()</button>
+                ) : (
+                  <button className="primary" onClick={testSignIn} style={{ flex: 1 }}>signIn()</button>
+                )}
+                <button onClick={testGetSignInUrl}>getSignInUrl()</button>
+                <button onClick={testGetToken}>getToken()</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Scopes */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">Scopes</span>
+            </div>
+            <div className="panel-body">
+              {scope ? (
+                <div className="scope-badges">
+                  {scope.split(/[,\s]+/).filter(Boolean).map(s => (
+                    <span key={s} className="scope-badge">{s}</span>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">No scopes</div>
+              )}
+              <div className="form-row" style={{ marginTop: 'var(--space-3)' }}>
+                <input
+                  type="text"
+                  placeholder="test a scope, e.g. profile"
+                  value={scopeTestInput}
+                  onChange={(e) => { setScopeTestInput(e.target.value); setScopeTestResult(null) }}
+                  onKeyDown={(e) => e.key === 'Enter' && scopeTestInput.trim() && setScopeTestResult(hasScope(scopeTestInput.trim()))}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  onClick={() => scopeTestInput.trim() && setScopeTestResult(hasScope(scopeTestInput.trim()))}
+                  disabled={!scopeTestInput.trim()}
+                >
+                  hasScope()
+                </button>
+              </div>
+              {scopeTestResult !== null && (
+                <div style={{ fontSize: 11, marginTop: 'var(--space-2)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>hasScope("{scopeTestInput}"):</span>{' '}
+                  <span className={scopeTestResult ? 'status-value success' : 'status-value error'}>
+                    {String(scopeTestResult)}
+                  </span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Auth Functions */}
+          {/* Access Token */}
           <div className="panel">
             <div className="panel-header">
-              <span className="panel-title">Functions</span>
+              <span className="panel-title">Access Token</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+                {expiryCountdown && (
+                  <span className={`token-countdown ${expiryCountdown === 'Expired' ? 'expired' : ''}`}>
+                    {expiryCountdown}
+                  </span>
+                )}
+                <button
+                  className="icon-btn small"
+                  onClick={testGetToken}
+                  title="Refresh token"
+                  style={{ width: 24, height: 24, fontSize: 12 }}
+                >
+                  ↻
+                </button>
+              </div>
             </div>
             <div className="panel-body">
-              <div className="button-group" style={{ marginBottom: 'var(--space-3)' }}>
-                <button onClick={testGetSignInUrl}>getSignInUrl()</button>
-                <button onClick={testGetToken}>getToken()</button>
-              </div>
-              <div className="button-group">
-                <button onClick={signIn}>signIn()</button>
-                <button onClick={signOut}>signOut()</button>
-              </div>
+              {accessToken ? (() => {
+                const decoded = decodeToken(accessToken)
+                return (
+                  <div className="token-display">
+                    {/* Structured claims */}
+                    {decoded && (
+                      <div className="token-claims">
+                        {decoded.iss && (
+                          <div className="token-claim-row">
+                            <span className="token-claim-label">issuer</span>
+                            <span className="token-claim-value">{decoded.iss}</span>
+                          </div>
+                        )}
+                        {decoded.sub && (
+                          <div className="token-claim-row">
+                            <span className="token-claim-label">subject</span>
+                            <span className="token-claim-value">{decoded.sub}</span>
+                          </div>
+                        )}
+                        {decoded.scope && (
+                          <div className="token-claim-row">
+                            <span className="token-claim-label">scope</span>
+                            <span className="token-claim-value">{decoded.scope}</span>
+                          </div>
+                        )}
+                        {decoded.iat && (
+                          <div className="token-claim-row">
+                            <span className="token-claim-label">issued</span>
+                            <span className="token-claim-value">{formatTimestamp(decoded.iat)}</span>
+                          </div>
+                        )}
+                        {decoded.exp && (
+                          <div className="token-claim-row">
+                            <span className="token-claim-label">expires</span>
+                            <span className={`token-claim-value ${decoded.exp * 1000 < Date.now() ? 'expired' : ''}`}>
+                              {formatTimestamp(decoded.exp)}
+                              {expiryCountdown && ` (${expiryCountdown})`}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Raw token with copy */}
+                    <div className="token-raw">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Raw token</span>
+                        <button
+                          className="small"
+                          onClick={() => navigator.clipboard.writeText(accessToken)}
+                          style={{ padding: '2px 6px', fontSize: 10 }}
+                        >
+                          Copy
+                        </button>
+                      </div>
+                      <code>{accessToken.slice(0, 60)}...</code>
+                    </div>
+
+                    {/* Full decoded payload */}
+                    {decoded && (
+                      <details>
+                        <summary style={{ cursor: 'pointer', fontSize: 10, color: 'var(--text-muted)' }}>Full payload</summary>
+                        <pre style={{ margin: 0, marginTop: 'var(--space-1)', fontSize: 10, overflow: 'auto', maxHeight: 150 }}>
+                          {JSON.stringify(decoded, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </div>
+                )
+              })() : (
+                <div className="empty-state">No token</div>
+              )}
             </div>
           </div>
 
@@ -835,39 +1020,6 @@ function App() {
             </div>
           </div>
 
-          {/* Access Token */}
-          <div className="panel">
-            <div className="panel-header">
-              <span className="panel-title">Access Token</span>
-              <button 
-                className="icon-btn small" 
-                onClick={testGetToken}
-                title="Refresh token"
-                style={{ width: 24, height: 24, fontSize: 12 }}
-              >
-                ↻
-              </button>
-            </div>
-            <div className="panel-body">
-              {accessToken ? (
-                <div className="token-display">
-                  <div className="token-raw">
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Raw (truncated):</span>
-                    <code>{accessToken.slice(0, 50)}...</code>
-                  </div>
-                  {decodeToken(accessToken) && (
-                    <div className="token-decoded">
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Decoded payload:</span>
-                      <pre>{JSON.stringify(decodeToken(accessToken), null, 2)}</pre>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="empty-state">No token</div>
-              )}
-            </div>
-          </div>
-
           {/* Sign In With Code */}
           <div className="panel">
             <div className="panel-header">
@@ -875,14 +1027,14 @@ function App() {
             </div>
             <div className="panel-body">
               <div className="form-stack">
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="code"
                   value={authCode}
                   onChange={(e) => setAuthCode(e.target.value)}
                 />
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="state (optional)"
                   value={authState}
                   onChange={(e) => setAuthState(e.target.value)}
@@ -896,8 +1048,8 @@ function App() {
           <div className="panel">
             <div className="panel-header">
               <span className="panel-title">Local Storage</span>
-              <button 
-                className="icon-btn small" 
+              <button
+                className="icon-btn small"
                 onClick={refreshStorageValues}
                 title="Refresh"
                 style={{ width: 24, height: 24, fontSize: 12 }}
@@ -909,23 +1061,16 @@ function App() {
               <div className="storage-list">
                 {Object.entries(STORAGE_KEYS).map(([key, storageKey]) => {
                   const value = storageValues[key]
-                  
-                  // Parse JSON for USER_INFO
+
                   let parsedJson = null
                   if (key === 'USER_INFO' && value) {
-                    try {
-                      parsedJson = JSON.parse(value)
-                    } catch {
-                      // ignore parse errors
-                    }
+                    try { parsedJson = JSON.parse(value) } catch { /* ignore */ }
                   }
 
-                  const displayValue = value 
-                    ? (key === 'REFRESH_TOKEN' 
-                        ? `${value.slice(0, 20)}...` 
-                        : value)
+                  const displayValue = value
+                    ? (key === 'REFRESH_TOKEN' ? `${value.slice(0, 20)}...` : value)
                     : null
-                  
+
                   return (
                     <div key={key} className="storage-item">
                       <div className="storage-key">
