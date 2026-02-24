@@ -13,7 +13,7 @@ This guide provides comprehensive REST API specifications and requirements for i
    - [Session Management](#session-management)
    - [Password Management](#password-management)
    - [Email Verification](#email-verification)
-   - [Username Availability](#username-availability)
+   - [Handle Availability](#handle-availability)
    - [DID Resolution](#did-resolution)
 2. [OAuth2 Implementation](#oauth2-implementation)
    - [Discovery & Configuration](#discovery--configuration)
@@ -36,7 +36,7 @@ This guide provides comprehensive REST API specifications and requirements for i
 
 ## PDS Authentication
 
-PDS authentication provides username/password-based authentication with email verification, password reset, and decentralized identifiers (DIDs). This is meant for clients of the PDS server, usually a front-end.
+PDS authentication provides handle/password-based authentication with email verification, password reset, and decentralized identifiers (DIDs). This is meant for clients of the PDS server, usually a front-end.
 
 ---
 
@@ -44,7 +44,7 @@ PDS authentication provides username/password-based authentication with email ve
 
 **Endpoint:** `POST /auth/signup`
 
-Create a new user account with username and password.
+Create a new user account with handle and password.
 
 #### Request
 
@@ -54,7 +54,7 @@ Content-Type: application/json
 
 {
   "type": "password",
-  "username": "john_doe",
+  "handle": "john_doe",
   "password": "securepassword123",
   "email": "john@example.com",
   "name": "John Doe"
@@ -66,7 +66,7 @@ Content-Type: application/json
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `type` | string | Yes | Authentication type. Must be `"password"` |
-| `username` | string | Yes | Unique username (alphanumeric, underscores) |
+| `handle` | string | Yes | Unique handle (alphanumeric, 2-30 chars) |
 | `password` | string | Yes | User password (minimum 3 characters) |
 | `email` | string | No | User email address (for verification) |
 | `name` | string | No | User's display name |
@@ -78,7 +78,7 @@ Content-Type: application/json
 {
   "data": {
     "id": "acc_12345",
-    "username": "john_doe",
+    "handle": "john_doe.basic.id",
     "email": "john@example.com",
     "name": "John Doe",
     "created_at": "2025-09-29T10:00:00Z"
@@ -109,7 +109,7 @@ The verification token is valid for **24 hours**.
 
 **Endpoint:** `POST /auth/login`
 
-Authenticate with username and password to receive access and refresh tokens.
+Authenticate with handle and password to receive access and refresh tokens.
 
 #### Request
 
@@ -118,7 +118,7 @@ POST /auth/login HTTP/1.1
 Content-Type: application/json
 
 {
-  "username": "john_doe",
+  "handle": "john_doe",
   "password": "securepassword123"
 }
 ```
@@ -127,7 +127,7 @@ Content-Type: application/json
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `username` | string | Yes | User's username or email |
+| `handle` | string | Yes | User's handle or email |
 | `password` | string | Yes | User's password |
 
 #### Response
@@ -336,7 +336,7 @@ Content-Type: application/json
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `identifier` | string | Yes | User's email or username |
+| `identifier` | string | Yes | User's email or handle |
 
 #### Response
 
@@ -344,7 +344,7 @@ Content-Type: application/json
 ```json
 {
   "success": true,
-  "message": "If an account with that email/username exists, a password reset link has been sent"
+  "message": "If an account with that email/handle exists, a password reset link has been sent"
 }
 ```
 
@@ -507,23 +507,25 @@ Content-Type: application/json
 
 ---
 
-### Username Availability
+### Handle Availability
 
-**Endpoint:** `GET /auth/check-username`
+**Endpoint:** `GET /auth/check-handle`
 
-Check if a username is available for registration.
+Check if a handle is available for registration.
 
 #### Request
 
 ```http
-GET /auth/check-username?username=john_doe HTTP/1.1
+GET /auth/check-handle?handle=john_doe HTTP/1.1
 ```
+
+> **Backward compatibility:** The legacy `GET /auth/check-username` endpoint redirects to `/auth/check-handle`.
 
 #### Query Parameters
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `username` | string | Yes | Username to check |
+| `handle` | string | Yes | Handle to check |
 
 #### Response
 
@@ -938,7 +940,7 @@ Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
   "id": "acc_12345",
   "name": "John Doe",
   "email": "john@example.com",
-  "username": "john_doe"
+  "handle_bare": "john_doe"
 }
 ```
 
@@ -1001,7 +1003,7 @@ The server uses a hierarchical scope-based authorization system for fine-grained
 
 | Scope | Description |
 |-------|-------------|
-| `profile:read` | User profile information (name, username) |
+| `profile:read` | User profile information (name, handle) |
 | `email:read` | User's email address |
 | `openid:read` | OpenID Connect authentication |
 
