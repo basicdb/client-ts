@@ -91,6 +91,7 @@ function App() {
     signOut,
     signIn,
     signInWithCode,
+    signInWithHandle,
     getToken,
     getSignInUrl
   } = useBasic()
@@ -110,6 +111,9 @@ function App() {
   const [expiryCountdown, setExpiryCountdown] = useState<string>('')
   const [scopeTestInput, setScopeTestInput] = useState('')
   const [scopeTestResult, setScopeTestResult] = useState<boolean | null>(null)
+  const [handleInput, setHandleInput] = useState('')
+  const [handleError, setHandleError] = useState<string | null>(null)
+  const [isHandleLoading, setIsHandleLoading] = useState(false)
   const [resolveInput, setResolveInput] = useState('')
   const [resolveResult, setResolveResult] = useState<ResolvedDid | null>(null)
   const [resolveError, setResolveError] = useState<string | null>(null)
@@ -364,6 +368,23 @@ function App() {
     addLog('status', 'signOut()', 'ok', performance.now() - start)
     setAccessToken(null)
     setTokenExpiry(null)
+  }
+
+  const testSignInWithHandle = async () => {
+    const handle = handleInput.trim()
+    if (!handle) return
+    setIsHandleLoading(true)
+    setHandleError(null)
+    try {
+      addLog('status', `signInWithHandle("${handle}") initiated`)
+      await signInWithHandle(handle)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      setHandleError(msg)
+      addLog('error', `signInWithHandle() failed`, msg)
+    } finally {
+      setIsHandleLoading(false)
+    }
   }
 
   const testSignInWithCode = async () => {
@@ -1041,6 +1062,39 @@ function App() {
                 />
                 <button onClick={testSignInWithCode}>Execute</button>
               </div>
+            </div>
+          </div>
+
+          {/* Sign In With Handle */}
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">signInWithHandle()</span>
+            </div>
+            <div className="panel-body">
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 'var(--space-2)' }}>
+                Resolves a handle to its PDS, discovers OAuth endpoints, and redirects to sign in.
+              </div>
+              <div className="form-row">
+                <input
+                  type="text"
+                  placeholder="alice.basic.id"
+                  value={handleInput}
+                  onChange={(e) => { setHandleInput(e.target.value); setHandleError(null) }}
+                  onKeyDown={(e) => e.key === 'Enter' && testSignInWithHandle()}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  onClick={testSignInWithHandle}
+                  disabled={isHandleLoading || !handleInput.trim()}
+                >
+                  {isHandleLoading ? '...' : 'Sign In'}
+                </button>
+              </div>
+              {handleError && (
+                <div style={{ color: 'var(--accent-error)', fontSize: 11, marginTop: 'var(--space-2)' }}>
+                  {handleError}
+                </div>
+              )}
             </div>
           </div>
 

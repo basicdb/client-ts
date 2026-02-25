@@ -8,17 +8,23 @@ import { log } from './config'
 import { version as currentVersion } from '../package.json'
 import { createVersionUpdater } from './updater/versionUpdater'
 import { getMigrations } from './updater/updateMigrations'
-import { BasicStorage, LocalStorageAdapter, STORAGE_KEYS, getCookie, setCookie, clearCookie } from './utils/storage'
+import { BasicStorage, LocalStorageAdapter, STORAGE_KEYS } from './utils/storage'
 import { isDevelopment, checkForNewVersion, cleanOAuthParamsFromUrl, getSyncStatus } from './utils/network'
 import { validateAndCheckSchema } from './utils/schema'
 import { normalizeClientId } from './utils/normalizeClientId'
+import { resolveHandle } from './utils/resolveDid'
 
 export type { BasicStorage, LocalStorageAdapter } from './utils/storage'
 export type { DBMode, BasicDB, Collection } from './core/db'
 
 export type AuthConfig = {
     scopes?: string | string[];
+    /** @deprecated Use pds_url instead */
     server_url?: string;
+    /** PDS URL for auth and data (default: https://pds.basic.id) */
+    pds_url?: string;
+    /** Admin server URL for connect reporting (default: https://api.basic.tech) */
+    admin_url?: string;
     ws_url?: string;
 }
 
@@ -44,7 +50,8 @@ export type BasicProviderProps = {
 
 const DEFAULT_AUTH_CONFIG = {
     scopes: 'profile,email,app:admin',
-    server_url: 'https://api.basic.tech',
+    pds_url: 'https://pds.basic.id',
+    admin_url: 'https://api.basic.tech',
     ws_url: 'wss://pds.basic.id/ws'
 } as const
 
@@ -59,13 +66,10 @@ enum DBStatus {
 }
 
 type User = {
+    sub?: string,
     name?: string,
     email?: string,
-    id?: string,
-    primaryEmailAddress?: {
-        emailAddress: string
-    },
-    fullName?: string
+    picture?: string,
 }
 type Token = {
     access_token: string,
@@ -81,6 +85,13 @@ export type AuthResult = {
     success: boolean;
     error?: string;
     code?: string;
+}
+
+type PdsEndpoints = {
+    pds_url: string;
+    authorization_endpoint: string;
+    token_endpoint: string;
+    userinfo_endpoint: string;
 }
 
 /**
@@ -100,6 +111,7 @@ export type BasicContextType = {
 
     // Auth actions (new camelCase naming)
     signIn: () => Promise<void>;
+    signInWithHandle: (handle: string) => Promise<void>;
     signOut: () => Promise<void>;
     signInWithCode: (code: string, state?: string) => Promise<AuthResult>;
 
@@ -142,6 +154,7 @@ export const BasicContext = createContext<BasicContextType>({
 
     // Auth actions
     signIn: () => Promise.resolve(),
+    signInWithHandle: () => Promise.resolve(),
     signOut: () => Promise.resolve(),
     signInWithCode: () => Promise.resolve({ success: false }),
 
@@ -198,13 +211,21 @@ export function BasicProvider({
     const remoteDbRef = useRef<RemoteDB | null>(null);
     const storageAdapter = storage || new LocalStorageAdapter();
     
-    // Merge auth config with defaults
+    // Merge auth config with defaults (server_url is deprecated in favor of pds_url)
+    if (auth?.server_url && !auth?.pds_url) {
+        log('Warning: auth.server_url is deprecated, use auth.pds_url instead')
+    }
     const authConfig = {
         scopes: auth?.scopes || DEFAULT_AUTH_CONFIG.scopes,
-        server_url: auth?.server_url || DEFAULT_AUTH_CONFIG.server_url,
+        pds_url: auth?.pds_url || auth?.server_url || DEFAULT_AUTH_CONFIG.pds_url,
+        admin_url: auth?.admin_url || DEFAULT_AUTH_CONFIG.admin_url,
         ws_url: auth?.ws_url || DEFAULT_AUTH_CONFIG.ws_url
     }
-    
+    const adminHostname = (() => {
+        try { return new URL(authConfig.admin_url).hostname }
+        catch { return 'api.basic.tech' }
+    })()
+
     // Normalize scopes to space-separated string
     const scopesString = Array.isArray(authConfig.scopes) 
         ? authConfig.scopes.join(' ') 
@@ -217,15 +238,52 @@ export function BasicProvider({
 
     const cleanOAuthParams = () => cleanOAuthParamsFromUrl()
 
+    function defaultPdsEndpoints(): PdsEndpoints {
+        return {
+            pds_url: authConfig.pds_url,
+            authorization_endpoint: `${authConfig.pds_url}/auth/authorize`,
+            token_endpoint: `${authConfig.pds_url}/auth/token`,
+            userinfo_endpoint: `${authConfig.pds_url}/auth/userinfo`
+        }
+    }
+
+    async function getActivePdsEndpoints(): Promise<PdsEndpoints> {
+        const stored = await storageAdapter.get(STORAGE_KEYS.PDS_ENDPOINTS)
+        if (stored) {
+            try { return JSON.parse(stored) as PdsEndpoints } catch { /* fall through */ }
+        }
+        return defaultPdsEndpoints()
+    }
+
+    async function reportConnection(accessToken: string) {
+        if (!project_id || !authConfig.admin_url) return
+        const lastReport = await storageAdapter.get(STORAGE_KEYS.LAST_CONNECT_REPORT)
+        if (lastReport) {
+            const elapsed = Date.now() - parseInt(lastReport, 10)
+            if (elapsed < 24 * 60 * 60 * 1000) return
+        }
+        try {
+            await fetch(`${authConfig.admin_url}/project/${project_id}/user/connect`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: accessToken })
+            })
+            await storageAdapter.set(STORAGE_KEYS.LAST_CONNECT_REPORT, Date.now().toString())
+            log('Reported connection to admin server')
+        } catch (err) {
+            log('Failed to report connection (non-blocking):', err)
+        }
+    }
+
     useEffect(() => {
-        const handleOnline = () => {
+        const handleOnline = async () => {
             log('Network came back online')
             setIsOnline(true)
             if (pendingRefresh) {
                 log('Retrying pending token refresh')
                 setPendingRefresh(false)
                 if (token) {
-                    const refreshToken = token.refresh_token || localStorage.getItem('basic_refresh_token')
+                    const refreshToken = token.refresh_token || await storageAdapter.get(STORAGE_KEYS.REFRESH_TOKEN)
                     if (refreshToken) {
                         fetchToken(refreshToken, true).catch(error => {
                             log('Retry refresh failed:', error)
@@ -287,7 +345,7 @@ export function BasicProvider({
 
                 log('Initializing Basic Remote DB')
                 remoteDbRef.current = new RemoteDB({
-                    serverUrl: authConfig.server_url,
+                    serverUrl: authConfig.pds_url,
                     projectId: project_id,
                     getToken: getToken,
                     schema: schema,
@@ -378,18 +436,17 @@ export function BasicProvider({
         const initializeAuth = async () => {
             await storageAdapter.set(STORAGE_KEYS.DEBUG, debug ? 'true' : 'false')
 
-            // Check if server URL has changed - if so, clear tokens
+            // Check if PDS URL has changed - if so, clear tokens
             const storedServerUrl = await storageAdapter.get(STORAGE_KEYS.SERVER_URL)
-            if (storedServerUrl && storedServerUrl !== authConfig.server_url) {
-                log('Server URL changed, clearing stored tokens')
+            if (storedServerUrl && storedServerUrl !== authConfig.pds_url) {
+                log('PDS URL changed, clearing stored tokens')
                 await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
                 await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
                 await storageAdapter.remove(STORAGE_KEYS.AUTH_STATE)
                 await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
-                clearCookie('basic_token')
-                clearCookie('basic_access_token')
+                await storageAdapter.remove(STORAGE_KEYS.PDS_ENDPOINTS)
             }
-            await storageAdapter.set(STORAGE_KEYS.SERVER_URL, authConfig.server_url)
+            await storageAdapter.set(STORAGE_KEYS.SERVER_URL, authConfig.pds_url)
 
             try {
                 const versionUpdater = createVersionUpdater(storageAdapter, currentVersion, getMigrations())
@@ -405,12 +462,13 @@ export function BasicProvider({
             }
 
             try {
-                if (window.location.search.includes('code')) {
-                    let code = window.location?.search?.split('code=')[1]?.split('&')[0]
+                const params = new URLSearchParams(window.location.search)
+                if (params.has('code')) {
+                    const code = params.get('code')
                     if (!code) return
 
                     const state = await storageAdapter.get(STORAGE_KEYS.AUTH_STATE)
-                    const urlState = window.location.search.split('state=')[1]?.split('&')[0]
+                    const urlState = params.get('state')
                     if (!state || state !== urlState) {
                         log('error: auth state does not match')
                         setIsAuthReady(true)
@@ -434,27 +492,18 @@ export function BasicProvider({
                             log('Error fetching refresh token:', error)
                         })
                     } else {
-                        let cookie_token = getCookie('basic_token')
-                        if (cookie_token !== '') {
-                            const tokenData = JSON.parse(cookie_token)
-                            setToken(tokenData)
-                            if (tokenData.refresh_token) {
-                                await storageAdapter.set(STORAGE_KEYS.REFRESH_TOKEN, tokenData.refresh_token)
+                        const cachedUserInfo = await storageAdapter.get(STORAGE_KEYS.USER_INFO)
+                        if (cachedUserInfo) {
+                            try {
+                                const userData = JSON.parse(cachedUserInfo)
+                                setUser(userData)
+                                setIsSignedIn(true)
+                                log('Loaded cached user info for offline mode')
+                            } catch (error) {
+                                log('Error parsing cached user info:', error)
                             }
-                        } else {
-                            const cachedUserInfo = await storageAdapter.get(STORAGE_KEYS.USER_INFO)
-                            if (cachedUserInfo) {
-                                try {
-                                    const userData = JSON.parse(cachedUserInfo)
-                                    setUser(userData)
-                                    setIsSignedIn(true)
-                                    log('Loaded cached user info for offline mode')
-                                } catch (error) {
-                                    log('Error parsing cached user info:', error)
-                                }
-                            }
-                            setIsAuthReady(true)
                         }
+                        setIsAuthReady(true)
                     }
                 }
 
@@ -468,9 +517,10 @@ export function BasicProvider({
 
     useEffect(() => {
         async function fetchUser(acc_token: string) {
-            console.info('fetching user')
+            log('fetching user')
             try {
-                const response = await fetch(`${authConfig.server_url}/auth/userInfo`, {
+                const endpoints = await getActivePdsEndpoints()
+                const response = await fetch(endpoints.userinfo_endpoint, {
                     method: 'GET',
                     headers: {
                         'Authorization': `Bearer ${acc_token}`
@@ -494,9 +544,6 @@ export function BasicProvider({
 
                 await storageAdapter.set(STORAGE_KEYS.USER_INFO, JSON.stringify(user))
                 log('Cached user info in storage')
-
-                setCookie('basic_access_token', token?.access_token || '', { httpOnly: false });
-                setCookie('basic_token', JSON.stringify(token));
 
                 setUser(user)
                 setIsSignedIn(true)
@@ -561,13 +608,17 @@ export function BasicProvider({
         }
     }, [token])
 
-    const getSignInLink = async (redirectUri?: string) => {
+    const getSignInLink = async (redirectUri?: string, endpoints?: PdsEndpoints) => {
         try {
             log('getting sign in link...')
 
             if (!project_id) {
                 throw new Error('Project ID is required to generate sign-in link')
             }
+
+            const pdsEndpoints = endpoints || defaultPdsEndpoints()
+            // Persist endpoints so the callback can exchange the code at the right PDS
+            await storageAdapter.set(STORAGE_KEYS.PDS_ENDPOINTS, JSON.stringify(pdsEndpoints))
 
             const randomState = Math.random().toString(36).substring(6);
             await storageAdapter.set(STORAGE_KEYS.AUTH_STATE, randomState)
@@ -582,8 +633,8 @@ export function BasicProvider({
             await storageAdapter.set(STORAGE_KEYS.REDIRECT_URI, redirectUrl)
             log('Stored redirect_uri for token exchange:', redirectUrl)
 
-            let baseUrl = `${authConfig.server_url}/auth/authorize`
-            baseUrl += `?client_id=${encodeURIComponent(normalizeClientId(project_id))}`
+            let baseUrl = pdsEndpoints.authorization_endpoint
+            baseUrl += `?client_id=${encodeURIComponent(normalizeClientId(project_id, adminHostname))}`
             baseUrl += `&redirect_uri=${encodeURIComponent(redirectUrl)}`
             baseUrl += `&response_type=code`
             baseUrl += `&scope=${encodeURIComponent(scopesString)}`
@@ -635,6 +686,50 @@ export function BasicProvider({
         }
     }
 
+    const signInWithHandle = async (handle: string) => {
+        try {
+            log('signing in with handle:', handle)
+
+            if (!project_id) {
+                throw new Error('Project ID is required for authentication')
+            }
+
+            const resolved = await resolveHandle(handle)
+            log('Resolved handle to PDS:', resolved.pdsUrl)
+
+            const endpoints: PdsEndpoints = {
+                pds_url: resolved.pdsUrl,
+                authorization_endpoint: resolved.authorization_endpoint,
+                token_endpoint: resolved.token_endpoint,
+                userinfo_endpoint: resolved.userinfo_endpoint
+            }
+
+            const signInLink = await getSignInLink(undefined, endpoints)
+            log('Generated federated sign-in link:', signInLink)
+
+            try {
+                new URL(signInLink)
+            } catch {
+                throw new Error('Failed to generate valid sign-in URL')
+            }
+
+            window.location.href = signInLink
+
+        } catch (error) {
+            log('Error during signInWithHandle:', error)
+
+            if (isDevMode()) {
+                setError({
+                    code: 'signin_error',
+                    title: 'Federated Sign-in Failed',
+                    message: (error as Error).message || 'Could not resolve handle or sign in.'
+                })
+            }
+
+            throw error
+        }
+    }
+
     const signinWithCode = async (code: string, state?: string): Promise<{ success: boolean, error?: string }> => {
         try {
             log('signinWithCode called with code:', code)
@@ -679,13 +774,13 @@ export function BasicProvider({
         setDid(null)
         setTokenScope(null)
 
-        clearCookie('basic_token');
-        clearCookie('basic_access_token');
         await storageAdapter.remove(STORAGE_KEYS.AUTH_STATE)
         await storageAdapter.remove(STORAGE_KEYS.REFRESH_TOKEN)
         await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
         await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
         await storageAdapter.remove(STORAGE_KEYS.SERVER_URL)
+        await storageAdapter.remove(STORAGE_KEYS.PDS_ENDPOINTS)
+        await storageAdapter.remove(STORAGE_KEYS.LAST_CONNECT_REPORT)
         if (syncRef.current) {
             (async () => {
                 try {
@@ -732,11 +827,6 @@ export function BasicProvider({
                     log('Failed to refresh token from storage:', error)
 
                     if ((error as Error).message.includes('offline') || (error as Error).message.includes('Network')) {
-                        log('Network issue - continuing with potentially expired token')
-                        const lastToken = localStorage.getItem('basic_access_token')
-                        if (lastToken) {
-                            return lastToken
-                        }
                         throw new Error('Network offline - authentication will be retried when online')
                     }
 
@@ -821,6 +911,8 @@ export function BasicProvider({
 
                 let requestBody: any
 
+                const endpoints = await getActivePdsEndpoints()
+
                 if (isRefreshToken) {
                     // Refresh token request
                     requestBody = { 
@@ -828,7 +920,7 @@ export function BasicProvider({
                         refresh_token: codeOrRefreshToken
                     }
                     if (project_id) {
-                        requestBody.client_id = normalizeClientId(project_id)
+                        requestBody.client_id = normalizeClientId(project_id, adminHostname)
                     }
                 } else {
                     // Authorization code exchange
@@ -846,13 +938,13 @@ export function BasicProvider({
                     }
                     
                     if (project_id) {
-                        requestBody.client_id = normalizeClientId(project_id)
+                        requestBody.client_id = normalizeClientId(project_id, adminHostname)
                     }
                 }
 
                 log('Token exchange request body:', { ...requestBody, refresh_token: isRefreshToken ? '[REDACTED]' : undefined, code: !isRefreshToken ? '[REDACTED]' : undefined })
 
-                const token = await fetch(`${authConfig.server_url}/auth/token`, {
+                const token = await fetch(endpoints.token_endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -898,8 +990,7 @@ export function BasicProvider({
                     await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
                     await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
                     await storageAdapter.remove(STORAGE_KEYS.SERVER_URL)
-                    clearCookie('basic_token');
-                    clearCookie('basic_access_token');
+                    await storageAdapter.remove(STORAGE_KEYS.PDS_ENDPOINTS)
 
                     setUser({})
                     setIsSignedIn(false)
@@ -922,9 +1013,8 @@ export function BasicProvider({
                         log('Cleaned up redirect_uri from storage after successful exchange')
                     }
 
-                    setCookie('basic_access_token', token.access_token, { httpOnly: false });
-                    setCookie('basic_token', JSON.stringify(token));
-                    log('Updated access token and full token in cookies')
+                    // Report connection to admin server (fire-and-forget, throttled to once/day)
+                    reportConnection(token.access_token).catch(() => {})
                 }
                 return token
             } catch (error) {
@@ -935,8 +1025,7 @@ export function BasicProvider({
                     await storageAdapter.remove(STORAGE_KEYS.USER_INFO)
                     await storageAdapter.remove(STORAGE_KEYS.REDIRECT_URI)
                     await storageAdapter.remove(STORAGE_KEYS.SERVER_URL)
-                    clearCookie('basic_token');
-                    clearCookie('basic_access_token');
+                    await storageAdapter.remove(STORAGE_KEYS.PDS_ENDPOINTS)
 
                     setUser({})
                     setIsSignedIn(false)
@@ -990,6 +1079,7 @@ export function BasicProvider({
 
         // Auth actions (new camelCase naming)
         signIn: signin,
+        signInWithHandle,
         signOut: signout,
         signInWithCode: signinWithCode,
 
