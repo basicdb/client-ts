@@ -825,7 +825,7 @@ function App() {
                   </div>
                   <div className="user-info-row">
                     <span className="user-info-label">id</span>
-                    <span>{user.id}</span>
+                    <span>{user.sub}</span>
                   </div>
                   {did && (
                     <div className="user-info-row">
