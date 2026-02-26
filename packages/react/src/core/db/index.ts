@@ -1,5 +1,5 @@
 // Core DB exports
-export type { Collection, BasicDB, DBMode, RemoteDBConfig } from './types'
+export type { Collection, BasicDB, DBMode, RemoteDBConfig, GetTokenOptions } from './types'
 export type { AuthError } from './types'
 export { RemoteDBError } from './types'
 export { RemoteDB } from './RemoteDB'

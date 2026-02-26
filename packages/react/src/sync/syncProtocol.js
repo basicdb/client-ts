@@ -29,8 +29,6 @@ export const syncProtocol = function () {
       log("Connecting to", url)
       var ws = new WebSocket(url);
 
-      // console.log("ws OPTIONS", options);
-
       // sendChanges() method:
       function sendChanges(changes, baseRevision, partial, onChangesAccepted) {
         log("sendChanges", changes.length, baseRevision);
@@ -89,7 +87,6 @@ export const syncProtocol = function () {
 
       // If socket is closed (network disconnected), inform framework and make it reconnect
       ws.onclose = function (event) {
-        // console.log('🙅 ws.onclose', event)
         onError("Socket closed: " + event.reason, RECONNECT_DELAY);
       };
 

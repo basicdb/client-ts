@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import './App.css'
 
 import { useBasic, useQuery, DBMode, STORAGE_KEYS, resolveDid, resolveHandle, type ResolvedDid } from "@basictech/react"
+import { version as sdkVersion } from "@basictech/react/package.json"
 
 // Random name generator
 const adjectives = [
@@ -481,7 +482,7 @@ function App() {
       {/* Header */}
       <header className="header">
         <div className="header-left">
-          <span className="header-title">@basictech/react</span>
+          <span className="header-title">@basictech/react <span className="header-version">v{sdkVersion}</span></span>
           <div className="status-badge">
             <span className={`status-dot ${getStatusClass()}`} />
             <span>{dbStatus}</span>

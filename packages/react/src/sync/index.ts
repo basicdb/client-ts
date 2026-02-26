@@ -58,29 +58,13 @@ export class BasicSync extends Dexie {
   constructor(name: string, options: any) {
     super(name, options);
 
-    // --- INIT SCHEMA --- // 
-
-    //todo: handle versions?
-
-    // TODO: validate schema
+    // --- INIT SCHEMA --- //
     this.basic_schema = options.schema
     this.version(1).stores(this._convertSchemaToDxSchema(this.basic_schema))
-
     this.version(2).stores({})
-    // this.verssion
 
-
-    // create an alias for toArray
-    // @ts-ignore
+    // @ts-ignore - alias for toArray
     this.Collection.prototype.get = this.Collection.prototype.toArray
-
-
-    // --- SYNC --- // 
-
-    // this.syncable.on("statusChanged", (status, url) => { 
-    //   console.log("statusChanged", status, url)
-    // })
-
   }
 
   async connect({ access_token, ws_url }: { access_token: string, ws_url?: string }) {
@@ -128,7 +112,6 @@ export class BasicSync extends Dexie {
           log(`HEISENBUG: Setting ${node.id} to ${node.id === largestNodeId ? 'master' : '0'}`);
         }
 
-        // add delay to ensure sync nodes are updated // i dont think this helps?
         await new Promise(resolve => setTimeout(resolve, 1000));
 
         if (typeof window !== 'undefined') {
@@ -162,11 +145,6 @@ export class BasicSync extends Dexie {
   }
 
   debugeroo() {
-    // console.log("debugeroo", this.syncable)
-
-    // this.syncable.list().then(x => console.log(x))
-
-    // this.syncable
     return this.syncable
   }
 

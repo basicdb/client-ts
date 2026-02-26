@@ -1,12 +1,12 @@
 import { BasicStorage } from '../utils/storage'
 import { Migration } from './versionUpdater'
-
+import { log } from '../config'
 
 export const addMigrationTimestamp: Migration = {
-  fromVersion: '0.6.0', 
+  fromVersion: '0.6.0',
   toVersion: '0.7.0',
   async migrate(storage: BasicStorage) {
-    console.log('Running test migration')
+    log('Running migration 0.6.0 → 0.7.0')
     storage.set('test_migration', 'true')
   }
 }

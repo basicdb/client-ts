@@ -56,13 +56,15 @@ const DEFAULT_AUTH_CONFIG = {
 } as const
 
 
-enum DBStatus {
+export enum DBStatus {
     LOADING = "LOADING",
     OFFLINE = "OFFLINE",
     CONNECTING = "CONNECTING",
     ONLINE = "ONLINE",
     SYNCING = "SYNCING",
-    ERROR = "ERROR"
+    ERROR = "ERROR",
+    /** Sync reported an error but will retry (e.g. expired token). Used for status code 4 from dexie-syncable. */
+    ERROR_WILL_RETRY = "ERROR_WILL_RETRY"
 }
 
 type User = {
@@ -116,7 +118,7 @@ export type BasicContextType = {
     signInWithCode: (code: string, state?: string) => Promise<AuthResult>;
 
     // Token management
-    getToken: () => Promise<string>;
+    getToken: (options?: { forceRefresh?: boolean }) => Promise<string>;
     getSignInUrl: (redirectUri?: string) => Promise<string>;
 
     // DB access
@@ -159,7 +161,7 @@ export const BasicContext = createContext<BasicContextType>({
     signInWithCode: () => Promise.resolve({ success: false }),
 
     // Token management
-    getToken: () => Promise.reject(new Error('no token')),
+    getToken: (_options?: { forceRefresh?: boolean }) => Promise.reject(new Error('no token')),
     getSignInUrl: () => Promise.resolve(""),
 
     // DB access
@@ -795,7 +797,7 @@ export function BasicProvider({
         }
     }
 
-    const getToken = async (): Promise<string> => {
+    const getToken = async (options?: { forceRefresh?: boolean }): Promise<string> => {
         log('getting token...')
 
         if (!token) {
@@ -838,12 +840,12 @@ export function BasicProvider({
         }
 
         const decoded = jwtDecode(token?.access_token)
-        // Add 5 second buffer to prevent edge cases where token expires during request
         const expirationBuffer = 5
         const isExpired = decoded.exp && decoded.exp < (Date.now() / 1000) + expirationBuffer
+        const shouldRefresh = isExpired || options?.forceRefresh === true
 
-        if (isExpired) {
-            log('token is expired - refreshing ...')
+        if (shouldRefresh) {
+            log(options?.forceRefresh ? 'force refreshing token...' : 'token is expired - refreshing ...')
             
             // Check if refresh is already in progress
             if (refreshPromiseRef.current) {
@@ -961,7 +963,7 @@ export function BasicProvider({
                         throw new Error('Network error during token refresh')
                     })
 
-                // Defensive typ check: ensure the access token isn't a refresh token
+                // Defensive type check: ensure the access token isn't a refresh token
                 if (token.access_token) {
                     try {
                         const decoded = jwtDecode<{ typ?: string }>(token.access_token)
@@ -974,7 +976,7 @@ export function BasicProvider({
                         if ((decodeError as Error).message.includes('Invalid token')) {
                             throw decodeError
                         }
-                        log('Warning: could not decode access token for typ check:', decodeError)
+                        log('Warning: could not decode access token for type check:', decodeError)
                     }
                 }
 

@@ -1,4 +1,5 @@
 import { BasicStorage } from '../utils/storage'
+import { log } from '../config'
 
 export interface VersionInfo {
   version: string
@@ -53,7 +54,7 @@ export class VersionUpdater {
     // Run migrations
     for (const migration of migrationsToRun) {
       try {
-        console.log(`Running migration from ${migration.fromVersion} to ${migration.toVersion}`)
+        log(`Running migration from ${migration.fromVersion} to ${migration.toVersion}`)
         await migration.migrate(this.storage)
       } catch (error) {
         console.error(`Migration failed from ${migration.fromVersion} to ${migration.toVersion}:`, error)
@@ -89,18 +90,10 @@ export class VersionUpdater {
 
   private getMigrationsToRun(fromVersion: string, toVersion: string): Migration[] {
     return this.migrations.filter(migration => {
-      // Migration should run if we're crossing the version boundary
-      // i.e., stored version is less than migration.toVersion AND current version is >= migration.toVersion
       const storedLessThanMigrationTo = this.compareVersions(fromVersion, migration.toVersion) < 0
       const currentGreaterThanOrEqualMigrationTo = this.compareVersions(toVersion, migration.toVersion) >= 0
-      
-      console.log(`Checking migration ${migration.fromVersion} → ${migration.toVersion}:`)
-      console.log(`  stored ${fromVersion} < migration.to ${migration.toVersion}: ${storedLessThanMigrationTo}`)
-      console.log(`  current ${toVersion} >= migration.to ${migration.toVersion}: ${currentGreaterThanOrEqualMigrationTo}`)
-      
       const shouldRun = storedLessThanMigrationTo && currentGreaterThanOrEqualMigrationTo
-      console.log(`  Should run: ${shouldRun}`)
-      
+      log(`Migration ${migration.fromVersion} → ${migration.toVersion}: shouldRun=${shouldRun}`)
       return shouldRun
     })
   }

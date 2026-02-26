@@ -30,8 +30,6 @@ export async function getSchemaStatus(schema: any): Promise<{
         }
     })
 
-    console.log('latestSchema', latestSchema)
-
     if (!latestSchema.version) {
         return { 
             valid: false, 

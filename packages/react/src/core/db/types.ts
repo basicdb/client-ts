@@ -110,12 +110,20 @@ export class RemoteDBError extends Error {
 }
 
 /**
+ * Options for getToken (e.g. force refresh after 401)
+ */
+export interface GetTokenOptions {
+  /** When true, refresh the access token before returning (e.g. after server returned 401) */
+  forceRefresh?: boolean
+}
+
+/**
  * Configuration for RemoteDB
  */
 export interface RemoteDBConfig {
   serverUrl: string
   projectId: string
-  getToken: () => Promise<string>
+  getToken: (options?: GetTokenOptions) => Promise<string>
   schema?: any
   /** Enable debug logging (default: false) */
   debug?: boolean

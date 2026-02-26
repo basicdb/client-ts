@@ -13,6 +13,7 @@ export type {
     BasicContextType,
     AuthResult
 } from "./AuthContext"
+export { DBStatus } from "./AuthContext"
 
 // Core DB exports
 export type { 
@@ -20,6 +21,7 @@ export type {
     BasicDB, 
     Collection, 
     RemoteDBConfig,
+    GetTokenOptions,
     AuthError
 } from "./core/db"
 

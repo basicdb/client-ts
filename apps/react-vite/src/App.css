@@ -32,6 +32,12 @@
   color: var(--text-primary);
 }
 
+.header-version {
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 .header-right {
   display: flex;
   align-items: center;

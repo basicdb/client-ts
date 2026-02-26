@@ -71,11 +71,10 @@ export class RemoteCollection<T extends { id: string } = Record<string, any> & {
     const responseData = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      // Handle 401 Unauthorized - token may have expired
+      // Handle 401 Unauthorized - force refresh then retry once
       if (response.status === 401 && !isRetry) {
-        this.log('Got 401, retrying with fresh token...')
-        // getToken() should refresh the token if expired
-        // Retry the request once
+        this.log('Got 401, forcing token refresh and retrying...')
+        await this.config.getToken({ forceRefresh: true })
         return this.request<R>(method, path, body, true)
       }
 

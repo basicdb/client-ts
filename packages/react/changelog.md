@@ -1,5 +1,11 @@
 # 1.3.4
 
+## Unreleased
+
+### Patch Changes
+
+- **DBStatus:** Add `ERROR_WILL_RETRY` to align with dexie-syncable status code 4 (error but will retry). Export `DBStatus` enum from the package. Document all `DBStatus` values in readme, including when `ERROR_WILL_RETRY` occurs (e.g. expired token). Enables UI to show "Reconnecting…" or future token refresh on this state.
+
 ## 0.7.0
 
 ### Minor Changes

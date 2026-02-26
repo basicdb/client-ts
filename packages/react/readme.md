@@ -137,10 +137,26 @@ const {
   
   // Database
   db,             // Database instance
-  dbStatus,       // "OFFLINE" | "CONNECTING" | "ONLINE" | "SYNCING"
+  dbStatus,       // DBStatus - see below
   dbMode,         // "sync" | "remote"
 } = useBasic()
 ```
+
+#### `DBStatus` (sync connection state)
+
+When `dbMode === "sync"`, `dbStatus` is one of:
+
+| Value | Description |
+|-------|-------------|
+| `LOADING` | SDK initializing |
+| `OFFLINE` | Not connected |
+| `CONNECTING` | Connecting to sync server |
+| `ONLINE` | Connected and idle |
+| `SYNCING` | Syncing data |
+| `ERROR` | Sync error |
+| `ERROR_WILL_RETRY` | Sync error but client will retry (e.g. expired token). Use this to show "Reconnecting…" or trigger token refresh. |
+
+Import the enum for comparisons: `import { useBasic, DBStatus } from '@basictech/react'`.
 
 ---
 
