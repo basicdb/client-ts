@@ -1,11 +1,24 @@
 "use client"
 import { Dexie } from "dexie";
 import { log } from "../config";
+import { getTokenGetter } from "./tokenRegistry";
+
+function decodeJwtExp(token) {
+  try {
+    var parts = token.split(".");
+    if (parts.length !== 3) return null;
+    var payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof payload.exp === "number" ? payload.exp : null;
+  } catch (_) {
+    return null;
+  }
+}
 
 export const syncProtocol = function () {
   log("Initializing syncProtocol");
   // Constants:
   var RECONNECT_DELAY = 5000; // Reconnect delay in case of errors such as network down.
+  var TOKEN_REFRESH_BUFFER = 60; // Refresh token this many seconds before exp
 
   Dexie.Syncable.registerSyncProtocol("websocket", {
     sync: function (
@@ -24,6 +37,7 @@ export const syncProtocol = function () {
       // The following vars are needed because we must know which callback to ack when server sends it's ack to us.
       var requestId = 0;
       var acceptCallbacks = {};
+      var refreshTimer = null;
 
       // Connect the WebSocket to given url:
       log("Connecting to", url)
@@ -60,26 +74,72 @@ export const syncProtocol = function () {
 
 
 
-      // When WebSocket opens, send our changes to the server.
-      ws.onopen = function (event) {
-        // Initiate this socket connection by sending our clientIdentity. If we dont have a clientIdentity yet,
-        // server will call back with a new client identity that we should use in future WebSocket connections.
-        
-        // send the schema to the server
-        log("Opening socket - sending clientIdentity", context.clientIdentity);
-        ws.send(
-          JSON.stringify({
-            type: "clientIdentity",
-            clientIdentity: context.clientIdentity || null,
-            authToken: options.authToken,
-            schema: options.schema
-          }),
-        );
+      function clearRefreshTimer() {
+        if (refreshTimer) {
+          clearTimeout(refreshTimer);
+          refreshTimer = null;
+        }
+      }
 
+      // Resolve the getToken function from the module-level registry.
+      // It's stored there (not in options) because dexie-syncable serializes
+      // options into IndexedDB, and functions can't survive structured clone.
+      function resolveGetToken() {
+        var fn = getTokenGetter(url);
+        if (!fn) throw new Error("No token getter registered for " + url);
+        return fn;
+      }
+
+      // Schedule a proactive token refresh before the JWT expires.
+      // Sends a tokenUpdate message on the existing WebSocket so the
+      // server can accept the new token without dropping the connection.
+      function scheduleTokenRefresh(tokenStr) {
+        clearRefreshTimer();
+        var exp = decodeJwtExp(tokenStr);
+        if (!exp) return;
+        var msUntilRefresh = (exp - TOKEN_REFRESH_BUFFER) * 1000 - Date.now();
+        if (msUntilRefresh <= 0) return;
+        log("Scheduling proactive token refresh in", Math.round(msUntilRefresh / 1000), "s");
+        refreshTimer = setTimeout(async function () {
+          try {
+            var newToken = await resolveGetToken()({ forceRefresh: true });
+            if (ws.readyState === WebSocket.OPEN) {
+              log("Sending tokenUpdate on existing WebSocket");
+              ws.send(JSON.stringify({ type: "tokenUpdate", authToken: newToken }));
+              scheduleTokenRefresh(newToken);
+            }
+          } catch (err) {
+            log("Proactive token refresh failed (non-fatal):", err);
+          }
+        }, msUntilRefresh);
+      }
+
+      // When WebSocket opens, get a fresh token and send our identity to the server.
+      // This runs on every open, including reconnects after ERROR_WILL_RETRY,
+      // so each attempt gets a fresh token via getToken().
+      ws.onopen = async function (event) {
+        try {
+          var token = await resolveGetToken()();
+          log("Opening socket - sending clientIdentity", context.clientIdentity);
+          ws.send(
+            JSON.stringify({
+              type: "clientIdentity",
+              clientIdentity: context.clientIdentity || null,
+              authToken: token,
+              schema: options.schema
+            }),
+          );
+          scheduleTokenRefresh(token);
+        } catch (err) {
+          log("Failed to get token for WebSocket:", err);
+          ws.close();
+          onError("Authentication failed: " + (err.message || err), RECONNECT_DELAY);
+        }
       };
 
       // If network down or other error, tell the framework to reconnect again in some time:
       ws.onerror = function (event) {
+        clearRefreshTimer();
         ws.close();
         log("ws.onerror", event);
         onError(event?.message, RECONNECT_DELAY);
@@ -87,6 +147,7 @@ export const syncProtocol = function () {
 
       // If socket is closed (network disconnected), inform framework and make it reconnect
       ws.onclose = function (event) {
+        clearRefreshTimer();
         onError("Socket closed: " + event.reason, RECONNECT_DELAY);
       };
 
@@ -111,7 +172,7 @@ export const syncProtocol = function () {
           //     partial: true if server has additionalChanges to send. False if these changes were the last known. (applicable if type="changes")
           // }
           var requestFromServer = JSON.parse(event.data);
-          log("requestFromServer", requestFromServer, { acceptCallback, isFirstRound });
+          log("requestFromServer", requestFromServer, { isFirstRound });
 
           if (requestFromServer.type == "clientIdentity") {
             context.clientIdentity = requestFromServer.clientIdentity;
@@ -148,8 +209,8 @@ export const syncProtocol = function () {
                     onChangesAccepted,
                   );
                 },
-                // Specify a disconnect function that will close our socket so that we dont continue to monitor changes.
                 disconnect: function () {
+                  clearRefreshTimer();
                   ws.close();
                 },
               });
@@ -161,9 +222,13 @@ export const syncProtocol = function () {
             acceptCallback(); // Tell framework that server has acknowledged the changes sent.
             delete acceptCallbacks[requestId.toString()];
           } else if (requestFromServer.type == "error") {
-            var requestId = requestFromServer.requestId;
             ws.close();
-            onError(requestFromServer.message, Infinity); // Don't reconnect - an error in application level means we have done something wrong.
+            if (requestFromServer.code === "TOKEN_EXPIRED" || requestFromServer.code === "UNAUTHORIZED") {
+              log("Auth error from server, will reconnect with fresh token:", requestFromServer.message);
+              onError(requestFromServer.message, RECONNECT_DELAY);
+            } else {
+              onError(requestFromServer.message, Infinity);
+            }
           } else {
             log("unknown message", requestFromServer);
             ws.close();

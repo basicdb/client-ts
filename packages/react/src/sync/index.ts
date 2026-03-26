@@ -5,6 +5,7 @@ import { Dexie } from 'dexie';
 
 import { log } from '../config'
 import { validateData } from '@basictech/schema'
+import { setTokenGetter } from './tokenRegistry'
 
 // Track initialization state
 let dexieExtensionsLoaded = false;
@@ -67,15 +68,20 @@ export class BasicSync extends Dexie {
     this.Collection.prototype.get = this.Collection.prototype.toArray
   }
 
-  async connect({ access_token, ws_url }: { access_token: string, ws_url?: string }) {
+  async connect({ getToken, ws_url }: { getToken: (opts?: { forceRefresh?: boolean }) => Promise<string>, ws_url?: string }) {
     const WS_URL = ws_url || 'wss://pds.basic.id/ws'
 
     log('Connecting to', WS_URL)
 
+    // Store getToken in module-level registry (not in options) because
+    // dexie-syncable serializes options into IndexedDB via structured clone,
+    // which cannot handle functions.
+    setTokenGetter(WS_URL, getToken)
+
     await this.updateSyncNodes();
     
     log('Starting connection...')
-    return this.syncable.connect("websocket", WS_URL, { authToken: access_token, schema: this.basic_schema });
+    return this.syncable.connect("websocket", WS_URL, { schema: this.basic_schema });
   }
 
   async disconnect({ ws_url }: { ws_url?: string } = {}) {

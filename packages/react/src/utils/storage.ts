@@ -27,7 +27,8 @@ export const STORAGE_KEYS = {
     SERVER_URL: 'basic_server_url',
     PDS_ENDPOINTS: 'basic_pds_endpoints',
     LAST_CONNECT_REPORT: 'basic_last_connect_report',
-    DEBUG: 'basic_debug'
+    DEBUG: 'basic_debug',
+    CODE_VERIFIER: 'basic_code_verifier'
 } as const
 
 export function getCookie(name: string): string {

@@ -103,11 +103,12 @@ export async function validateAndCheckSchema(schema: any): Promise<{
         }
     }
 
-    let schemaStatus = { valid: false }
+    let schemaStatus: { valid: boolean, status?: string, latest?: any } = { valid: false }
     if (schema.version !== 0) {
         schemaStatus = await getSchemaStatus(schema)
         log('schemaStatus', schemaStatus)
-    } else { 
+    } else {
+        schemaStatus = { valid: false, status: 'unpublished' }
         log("schema not published - at version 0")
     }
 

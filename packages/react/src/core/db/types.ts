@@ -91,6 +91,10 @@ export interface AuthError {
   status: number
   message: string
   response?: any
+  /** Classifies the error for UI display (e.g. "session expired" vs "forbidden") */
+  errorType: 'expired' | 'forbidden' | 'revoked' | 'network' | 'unknown'
+  /** True if this error occurred after a retry with a refreshed token */
+  afterRetry: boolean
 }
 
 /**

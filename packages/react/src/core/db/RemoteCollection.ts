@@ -59,12 +59,16 @@ export class RemoteCollection<T extends { id: string } = Record<string, any> & {
 
     this.log(`${method} ${url}`, body ? JSON.stringify(body) : '')
 
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`
+    }
+    if (body) {
+      headers['Content-Type'] = 'application/json'
+    }
+
     const response = await fetch(url, {
       method,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
+      headers,
       ...(body ? { body: JSON.stringify(body) } : {})
     })
 
@@ -82,16 +86,27 @@ export class RemoteCollection<T extends { id: string } = Record<string, any> & {
         console.error(`[RemoteDB] Error ${response.status}:`, responseData)
       }
       
-      // Call onAuthError callback if provided and this is an auth error
-      if (response.status === 401 && this.config.onAuthError) {
-        this.config.onAuthError({
-          status: response.status,
-          message: 'Authentication failed',
-          response: responseData
-        })
+      // Call onAuthError callback for auth/authz errors
+      if (this.config.onAuthError) {
+        if (response.status === 401) {
+          this.config.onAuthError({
+            status: response.status,
+            message: 'Authentication failed',
+            response: responseData,
+            errorType: 'expired',
+            afterRetry: isRetry,
+          })
+        } else if (response.status === 403) {
+          this.config.onAuthError({
+            status: response.status,
+            message: responseData.message || 'Forbidden - insufficient permissions or missing scope',
+            response: responseData,
+            errorType: 'forbidden',
+            afterRetry: isRetry,
+          })
+        }
       }
 
-      // Try different error message fields that APIs commonly use
       const errorMessage = responseData.message || responseData.error || responseData.detail || 
         (typeof responseData === 'string' ? responseData : `API request failed: ${response.status}`)
       throw new RemoteDBError(errorMessage, response.status, responseData)
