@@ -99,6 +99,7 @@ Root provider component. Must wrap your entire app.
   schema={schema}           // Required: Your Basic schema
   debug={false}             // Optional: Enable console logging
   dbMode="sync"             // Optional: "sync" (default) or "remote"
+  devToolbar={false}        // Optional: Floating dev status bar (localhost / dev / debug)
 />
 ```
 
@@ -109,6 +110,7 @@ Root provider component. Must wrap your entire app.
 | `schema` | `object` | required | Schema with `project_id` and `tables` |
 | `debug` | `boolean` | `false` | Enable debug logging |
 | `dbMode` | `"sync" \| "remote"` | `"sync"` | Database mode |
+| `devToolbar` | `boolean` | `false` | Show the Basic dev toolbar (only when `localhost`, `NODE_ENV === "development"`, or `debug={true}`) |
 
 #### Database Modes
 
@@ -139,6 +141,10 @@ const {
   db,             // Database instance
   dbStatus,       // DBStatus - see below
   dbMode,         // "sync" | "remote"
+
+  // Dev / schema snapshot (for custom tooling)
+  devInfo,              // BasicSchemaDevInfo | null — local vs remote schema status
+  refreshSchemaStatus,  // () => Promise<void> — re-fetch schema status from API
 } = useBasic()
 ```
 
@@ -157,6 +163,33 @@ When `dbMode === "sync"`, `dbStatus` is one of:
 | `ERROR_WILL_RETRY` | Sync error but client will retry (e.g. expired token). Use this to show "Reconnecting…" or trigger token refresh. |
 
 Import the enum for comparisons: `import { useBasic, DBStatus } from '@basictech/react'`.
+
+---
+
+### Development toolbar
+
+A small floating bar (similar in spirit to Next.js dev indicators) shows **auth**, **database mode**, **sync status**, and **schema vs server** health. It is **opt-in** and only appears in development: `localhost` / `127.0.0.1` / `.local`, `NODE_ENV === "development"`, or when `debug` is `true` on the provider or on the standalone component.
+
+**Option A — provider flag**
+
+```tsx
+<BasicProvider schema={schema} devToolbar debug>
+  <App />
+</BasicProvider>
+```
+
+**Option B — place the component yourself** (must be under `BasicProvider`; respects the same visibility rules, or pass `debug` to force):
+
+```tsx
+import { BasicDevToolbar } from '@basictech/react'
+
+<BasicProvider schema={schema}>
+  <App />
+  <BasicDevToolbar />
+</BasicProvider>
+```
+
+The expanded panel includes **Refresh schema** (re-runs the remote schema check) and **Copy debug info** (JSON snapshot **without** raw access tokens). You can also read `devInfo` and call `refreshSchemaStatus()` from `useBasic()` for your own UI.
 
 ---
 

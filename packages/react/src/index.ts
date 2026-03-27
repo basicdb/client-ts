@@ -1,16 +1,17 @@
 import { useBasic, BasicProvider } from "./AuthContext";
 import { useLiveQuery as useQuery } from "dexie-react-hooks";
 
-// Re-export from AuthContext
 export { useBasic, BasicProvider, useQuery }
+export { BasicDevToolbar } from "./dev/BasicDevToolbar"
+export type { BasicDevToolbarProps } from "./dev/BasicDevToolbar"
 
-// Type exports
 export type { 
     AuthConfig, 
     BasicStorage, 
     LocalStorageAdapter, 
     BasicProviderProps,
     BasicContextType,
+    BasicSchemaDevInfo,
     AuthResult
 } from "./AuthContext"
 export { DBStatus } from "./AuthContext"

@@ -1,5 +1,33 @@
 # nextjs
 
+## 0.4.0-beta.2
+
+### Minor Changes
+
+- added debug bar
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/nextjs@0.7.0-beta.2
+
+## 0.4.0-beta.1
+
+### Minor Changes
+
+- uth updates
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/nextjs@0.7.0-beta.1
+
+## 0.3.1-beta.0
+
+### Patch Changes
+
+- @basictech/nextjs@0.6.1-beta.0
+
 ## 0.3.0
 
 ### Minor Changes

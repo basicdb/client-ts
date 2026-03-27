@@ -1,165 +1,75 @@
-import React, { createContext, useContext, useEffect, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useRef, useState, Suspense, lazy } from 'react'
 
 import { BasicSync, initDexieExtensions } from './sync'
 import { RemoteDB, DBMode, BasicDB } from './core/db'
 import { AuthManager } from './core/auth/AuthManager'
-import type { Token, User, AuthResult, GetTokenOptions, PdsEndpoints } from './core/auth/AuthManager'
+import type { User, AuthResult, GetTokenOptions, PdsEndpoints } from './core/auth/AuthManager'
 
 import { log } from './config'
 import { version as currentVersion } from '../package.json'
 import { createVersionUpdater } from './updater/versionUpdater'
 import { getMigrations } from './updater/updateMigrations'
-import { BasicStorage, LocalStorageAdapter, STORAGE_KEYS } from './utils/storage'
+import { BasicStorage, LocalStorageAdapter } from './utils/storage'
 import { isDevelopment, checkForNewVersion, getSyncStatus } from './utils/network'
 import { validateAndCheckSchema } from './utils/schema'
+import { BasicContext, DBStatus, noDb, type BasicSchemaDevInfo } from './context'
+
+const BasicDevToolbar = lazy(() =>
+    import('./dev/BasicDevToolbar').then((m) => ({ default: m.BasicDevToolbar }))
+)
 
 export type { BasicStorage, LocalStorageAdapter } from './utils/storage'
 export type { DBMode, BasicDB, Collection } from './core/db'
-export type { Token, User, AuthResult, GetTokenOptions, PdsEndpoints }
+export type { Token, User, AuthResult, GetTokenOptions, PdsEndpoints } from './core/auth/AuthManager'
+export type { BasicContextType, BasicSchemaDevInfo } from './context'
+export { DBStatus, useBasic, BasicContext } from './context'
 
 export type AuthConfig = {
-    scopes?: string | string[];
+    scopes?: string | string[]
     /** @deprecated Use pds_url instead */
-    server_url?: string;
+    server_url?: string
     /** PDS URL for auth and data (default: https://pds.basic.id) */
-    pds_url?: string;
+    pds_url?: string
     /** Admin server URL for connect reporting (default: https://api.basic.tech) */
-    admin_url?: string;
-    ws_url?: string;
+    admin_url?: string
+    ws_url?: string
 }
 
 export type BasicProviderProps = {
-    children: React.ReactNode;
-    /** 
-     * @deprecated Project ID is now extracted from schema.project_id. 
+    children: React.ReactNode
+    /**
+     * @deprecated Project ID is now extracted from schema.project_id.
      * This prop is kept for backward compatibility but can be omitted.
      */
-    project_id?: string;
+    project_id?: string
     /** The Basic schema object containing project_id and table definitions */
-    schema?: any;
-    debug?: boolean;
-    storage?: BasicStorage;
-    auth?: AuthConfig;
+    schema?: any
+    debug?: boolean
+    storage?: BasicStorage
+    auth?: AuthConfig
     /**
      * Database mode - determines which implementation is used
      * - 'sync': Uses Dexie + WebSocket for local-first sync (default)
      * - 'remote': Uses REST API calls directly to server
      */
-    dbMode?: DBMode;
+    dbMode?: DBMode
+    /** Show floating dev toolbar (localhost, NODE_ENV=development, or debug=true). */
+    devToolbar?: boolean
 }
 
 const DEFAULT_AUTH_CONFIG = {
     scopes: 'profile,email,app:admin',
     pds_url: 'https://pds.basic.id',
     admin_url: 'https://api.basic.tech',
-    ws_url: 'wss://pds.basic.id/ws'
+    ws_url: 'wss://pds.basic.id/ws',
 } as const
 
-
-export enum DBStatus {
-    LOADING = "LOADING",
-    OFFLINE = "OFFLINE",
-    CONNECTING = "CONNECTING",
-    ONLINE = "ONLINE",
-    SYNCING = "SYNCING",
-    ERROR = "ERROR",
-    /** Sync reported an error but will retry (e.g. expired token). Used for status code 4 from dexie-syncable. */
-    ERROR_WILL_RETRY = "ERROR_WILL_RETRY",
-    /** Token expired; the SDK is refreshing and will reconnect automatically. */
-    ERROR_TOKEN_EXPIRED = "ERROR_TOKEN_EXPIRED"
-}
-
-/**
- * Context type for useBasic hook
- */
-export type BasicContextType = {
-    // Auth state
-    isReady: boolean;
-    isSignedIn: boolean;
-    user: User | null;
-    /** The user's DID (Decentralized Identifier), extracted from the access token `sub` claim */
-    did: string | null;
-    /** Space-separated scope string from the access token */
-    scope: string | null;
-    /** Check if a specific scope is granted (e.g., hasScope('profile')) */
-    hasScope: (scope: string) => boolean;
-    /** Returns scopes that were requested but not granted in the current token */
-    missingScopes: () => string[];
-
-    // Auth actions (new camelCase naming)
-    signIn: () => Promise<void>;
-    signInWithHandle: (handle: string) => Promise<void>;
-    signOut: () => Promise<void>;
-    signInWithCode: (code: string, state?: string) => Promise<AuthResult>;
-
-    // Token management
-    getToken: (options?: GetTokenOptions) => Promise<string>;
-    getSignInUrl: (redirectUri?: string) => Promise<string>;
-
-    // DB access
-    db: BasicDB;
-    dbStatus: DBStatus;
-    dbMode: DBMode;
-
-    // Legacy aliases (deprecated - will be removed in future version)
-    /** @deprecated Use isReady instead */
-    isAuthReady: boolean;
-    /** @deprecated Use signIn instead */
-    signin: () => Promise<void>;
-    /** @deprecated Use signOut instead */
-    signout: () => Promise<void>;
-    /** @deprecated Use signInWithCode instead */
-    signinWithCode: (code: string, state?: string) => Promise<AuthResult>;
-    /** @deprecated Use getSignInUrl instead */
-    getSignInLink: (redirectUri?: string) => Promise<string>;
-}
-
-const noDb: BasicDB = {
-    collection: () => {
-        throw new Error('no basicdb found - initialization failed. double check your schema.')
-    }
-}
-
-export const BasicContext = createContext<BasicContextType>({
-    // Auth state
-    isReady: false,
-    isSignedIn: false,
-    user: null,
-    did: null,
-    scope: null,
-    hasScope: () => false,
-    missingScopes: () => [],
-
-    // Auth actions
-    signIn: () => Promise.resolve(),
-    signInWithHandle: () => Promise.resolve(),
-    signOut: () => Promise.resolve(),
-    signInWithCode: () => Promise.resolve({ success: false }),
-
-    // Token management
-    getToken: (_options?: GetTokenOptions) => Promise.reject(new Error('no token')),
-    getSignInUrl: () => Promise.resolve(""),
-
-    // DB access
-    db: noDb,
-    dbStatus: DBStatus.LOADING,
-    dbMode: 'sync',
-
-    // Legacy aliases
-    isAuthReady: false,
-    signin: () => Promise.resolve(),
-    signout: () => Promise.resolve(),
-    signinWithCode: () => Promise.resolve({ success: false }),
-    getSignInLink: () => Promise.resolve("")
-});
-
 type ErrorObject = {
-    code: string;
-    title: string;
-    message: string;
+    code: string
+    title: string
+    message: string
 }
 
-// Tracks the subset of AuthManager state that React effects depend on.
 type AuthSnapshot = {
     isSignedIn: boolean
     hasToken: boolean
@@ -187,11 +97,11 @@ export function BasicProvider({
     debug = false,
     storage,
     auth,
-    dbMode = 'sync'
+    dbMode = 'sync',
+    devToolbar = false,
 }: BasicProviderProps) {
     const project_id = schema?.project_id || project_id_prop
 
-    // Merge auth config with defaults (server_url is deprecated in favor of pds_url)
     if (auth?.server_url && !auth?.pds_url) {
         log('Warning: auth.server_url is deprecated, use auth.pds_url instead')
     }
@@ -199,7 +109,7 @@ export function BasicProvider({
         scopes: auth?.scopes || DEFAULT_AUTH_CONFIG.scopes,
         pds_url: auth?.pds_url || auth?.server_url || DEFAULT_AUTH_CONFIG.pds_url,
         admin_url: auth?.admin_url || DEFAULT_AUTH_CONFIG.admin_url,
-        ws_url: auth?.ws_url || DEFAULT_AUTH_CONFIG.ws_url
+        ws_url: auth?.ws_url || DEFAULT_AUTH_CONFIG.ws_url,
     }
 
     const scopesString = Array.isArray(authConfig.scopes)
@@ -209,7 +119,9 @@ export function BasicProvider({
     const storageRef = useRef<BasicStorage>(storage || new LocalStorageAdapter())
     const storageAdapter = storageRef.current
 
-    // --- AuthManager (stable instance held in a ref) ---
+    const schemaRef = useRef(schema)
+    schemaRef.current = schema
+
     const [authState, setAuthState] = useState<AuthSnapshot>({
         isSignedIn: false,
         hasToken: false,
@@ -234,19 +146,56 @@ export function BasicProvider({
         )
     }
 
-    // --- DB state (stays in React) ---
     const syncRef = useRef<BasicSync | null>(null)
     const remoteDbRef = useRef<RemoteDB | null>(null)
     const [shouldConnect, setShouldConnect] = useState(false)
     const [dbStatus, setDbStatus] = useState<DBStatus>(DBStatus.OFFLINE)
     const [isReady, setIsReady] = useState(false)
     const [error, setError] = useState<ErrorObject | null>(null)
+    const [schemaDevInfo, setSchemaDevInfo] = useState<BasicSchemaDevInfo | null>(null)
 
     const isDevMode = () => isDevelopment(debug)
 
-    // --- Mount: version updater + auth init + DB init ---
+    const refreshSchemaStatus = useCallback(async () => {
+        const s = schemaRef.current
+        if (!s) {
+            setSchemaDevInfo(
+                project_id
+                    ? {
+                          projectId: project_id,
+                          localVersion: undefined,
+                          status: 'no_schema',
+                          valid: false,
+                          lastCheckedAt: Date.now(),
+                      }
+                    : null,
+            )
+            return
+        }
+        const result = await validateAndCheckSchema(s)
+        if (!result.isValid) {
+            const errText =
+                result.errors?.map((e: { message?: string }) => e.message || '').join('; ') || 'invalid'
+            setSchemaDevInfo({
+                projectId: s.project_id ?? null,
+                localVersion: s.version,
+                status: 'invalid',
+                valid: false,
+                lastCheckedAt: Date.now(),
+                error: errText,
+            })
+            return
+        }
+        setSchemaDevInfo({
+            projectId: s.project_id ?? null,
+            localVersion: s.version,
+            status: result.schemaStatus.status ?? 'unknown',
+            valid: result.schemaStatus.valid,
+            lastCheckedAt: Date.now(),
+        })
+    }, [project_id])
+
     useEffect(() => {
-        // Version updater (SDK migration, not auth-related)
         const runVersionUpdater = async () => {
             try {
                 const versionUpdater = createVersionUpdater(storageAdapter, currentVersion, getMigrations())
@@ -268,7 +217,6 @@ export function BasicProvider({
         return authRef.current.setupNetworkListeners()
     }, [])
 
-    // --- DB init (separate mount effect) ---
     useEffect(() => {
         async function initSyncDb(options: { shouldConnect: boolean }) {
             if (!syncRef.current) {
@@ -276,7 +224,7 @@ export function BasicProvider({
 
                 await initDexieExtensions()
 
-                syncRef.current = new BasicSync('basicdb', { schema: schema });
+                syncRef.current = new BasicSync('basicdb', { schema: schema })
 
                 syncRef.current.syncable.on('statusChanged', (status: number) => {
                     const newStatus = getSyncStatus(status) as DBStatus
@@ -304,7 +252,8 @@ export function BasicProvider({
                     setError({
                         code: 'missing_project_id',
                         title: 'Project ID Required',
-                        message: 'Remote mode requires a project_id. Provide it via schema.project_id or the project_id prop.'
+                        message:
+                            'Remote mode requires a project_id. Provide it via schema.project_id or the project_id prop.',
                     })
                     setIsReady(true)
                     return
@@ -320,7 +269,7 @@ export function BasicProvider({
                     onAuthError: (error) => {
                         log('RemoteDB auth error:', error)
                         handleSignOut()
-                    }
+                    },
                 })
                 setDbStatus(DBStatus.ONLINE)
                 setIsReady(true)
@@ -333,18 +282,34 @@ export function BasicProvider({
             if (!result.isValid) {
                 let errorMessage = ''
                 if (result.errors) {
-                    result.errors.forEach((error: any, index: number) => {
-                        errorMessage += `${index + 1}: ${error.message} - at ${error.instancePath}\n`
+                    result.errors.forEach((err: any, index: number) => {
+                        errorMessage += `${index + 1}: ${err.message} - at ${err.instancePath}\n`
                     })
                 }
+                setSchemaDevInfo({
+                    projectId: schema?.project_id ?? null,
+                    localVersion: schema?.version,
+                    status: 'invalid',
+                    valid: false,
+                    lastCheckedAt: Date.now(),
+                    error: errorMessage.trim() || undefined,
+                })
                 setError({
                     code: 'schema_invalid',
                     title: 'Basic Schema is invalid!',
-                    message: errorMessage
+                    message: errorMessage,
                 })
                 setIsReady(true)
                 return null
             }
+
+            setSchemaDevInfo({
+                projectId: schema?.project_id ?? null,
+                localVersion: schema?.version,
+                status: result.schemaStatus.status ?? 'unknown',
+                valid: result.schemaStatus.valid,
+                lastCheckedAt: Date.now(),
+            })
 
             if (dbMode === 'remote') {
                 initRemoteDb()
@@ -367,30 +332,40 @@ export function BasicProvider({
         if (schema) {
             checkSchema()
         } else {
+            setSchemaDevInfo(
+                project_id
+                    ? {
+                          projectId: project_id,
+                          localVersion: undefined,
+                          status: 'no_schema',
+                          valid: false,
+                          lastCheckedAt: Date.now(),
+                      }
+                    : null,
+            )
             if (dbMode === 'remote' && project_id) {
                 initRemoteDb()
             } else {
                 setIsReady(true)
             }
         }
-    }, []);
+    }, [])
 
-    // --- Connect sync DB when auth is ready ---
     useEffect(() => {
         if (authState.hasToken && syncRef.current && authState.isSignedIn && shouldConnect) {
             log('connecting to db...')
 
-            syncRef.current?.connect({
-                getToken: (opts?: GetTokenOptions) => authRef.current.getToken(opts),
-                ws_url: authConfig.ws_url
-            })
+            syncRef.current
+                ?.connect({
+                    getToken: (opts?: GetTokenOptions) => authRef.current.getToken(opts),
+                    ws_url: authConfig.ws_url,
+                })
                 .catch((e: any) => {
                     log('error connecting to db', e)
                 })
         }
     }, [authState.isSignedIn, authState.hasToken, shouldConnect])
 
-    // --- Sign out (auth cleanup + sync teardown) ---
     const handleSignOut = async () => {
         await authRef.current.signOut()
         if (syncRef.current) {
@@ -405,7 +380,6 @@ export function BasicProvider({
         }
     }
 
-    // --- Sign in wrappers (add dev-mode error display) ---
     const handleSignIn = async () => {
         try {
             await authRef.current.signIn()
@@ -414,7 +388,8 @@ export function BasicProvider({
                 setError({
                     code: 'signin_error',
                     title: 'Sign-in Failed',
-                    message: (error as Error).message || 'An error occurred during sign-in. Please try again.'
+                    message:
+                        (error as Error).message || 'An error occurred during sign-in. Please try again.',
                 })
             }
             throw error
@@ -429,14 +404,14 @@ export function BasicProvider({
                 setError({
                     code: 'signin_error',
                     title: 'Sign-in Failed',
-                    message: (error as Error).message || 'An error occurred during sign-in. Please try again.'
+                    message:
+                        (error as Error).message || 'An error occurred during sign-in. Please try again.',
                 })
             }
             throw error
         }
     }
 
-    // --- DB accessor ---
     const getCurrentDb = (): BasicDB => {
         if (dbMode === 'remote') {
             return remoteDbRef.current || noDb
@@ -444,33 +419,30 @@ export function BasicProvider({
         return syncRef.current || noDb
     }
 
-    // --- Context value ---
-    const contextValue: BasicContextType = {
-        // Auth state
+    const contextValue = {
         isReady: authState.isAuthReady,
         isSignedIn: authState.isSignedIn,
         user: authState.user,
         did: authState.did,
         scope: authState.tokenScope,
-        hasScope: (scope: string) => authRef.current.hasScope(scope),
+        hasScope: (s: string) => authRef.current.hasScope(s),
         missingScopes: () => authRef.current.missingScopes(),
 
-        // Auth actions
         signIn: handleSignIn,
         signInWithHandle: handleSignInWithHandle,
         signOut: handleSignOut,
         signInWithCode: (code: string, state?: string) => authRef.current.signInWithCode(code, state),
 
-        // Token management
         getToken: (opts?: GetTokenOptions) => authRef.current.getToken(opts),
         getSignInUrl: (redirectUri?: string) => authRef.current.getSignInUrl(redirectUri),
 
-        // DB access
         db: getCurrentDb(),
         dbStatus,
         dbMode,
 
-        // Legacy aliases (deprecated)
+        devInfo: schemaDevInfo,
+        refreshSchemaStatus,
+
         isAuthReady: authState.isAuthReady,
         signin: handleSignIn,
         signout: handleSignOut,
@@ -481,33 +453,37 @@ export function BasicProvider({
     return (
         <BasicContext.Provider value={contextValue}>
             {error && isDevMode() && <ErrorDisplay error={error} />}
+            {devToolbar && isDevMode() && (
+                <Suspense fallback={null}>
+                    <BasicDevToolbar debug={debug} />
+                </Suspense>
+            )}
             {isReady && children}
         </BasicContext.Provider>
     )
 }
 
 function ErrorDisplay({ error }: { error: ErrorObject }) {
-    return <div style={{
-        position: 'absolute',
-        top: 20,
-        left: 20,
-        color: 'black',
-        backgroundColor: '#f8d7da',
-        border: '1px solid #f5c6cb',
-        borderRadius: '4px',
-        padding: '20px',
-        maxWidth: '400px',
-        margin: '20px auto',
-        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-        fontFamily: 'monospace',
-    }}>
-        <h3 style={{ fontSize: '0.8rem', opacity: 0.8 }}>code: {error.code}</h3>
-        <h1 style={{ fontSize: '1.2rem', lineHeight: '1.5' }}>{error.title}</h1>
-        <p>{error.message}</p>
-    </div>
-}
-
-
-export function useBasic() {
-    return useContext(BasicContext);
+    return (
+        <div
+            style={{
+                position: 'absolute',
+                top: 20,
+                left: 20,
+                color: 'black',
+                backgroundColor: '#f8d7da',
+                border: '1px solid #f5c6cb',
+                borderRadius: '4px',
+                padding: '20px',
+                maxWidth: '400px',
+                margin: '20px auto',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                fontFamily: 'monospace',
+            }}
+        >
+            <h3 style={{ fontSize: '0.8rem', opacity: 0.8 }}>code: {error.code}</h3>
+            <h1 style={{ fontSize: '1.2rem', lineHeight: 1.5 }}>{error.title}</h1>
+            <p>{error.message}</p>
+        </div>
+    )
 }

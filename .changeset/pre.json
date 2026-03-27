@@ -15,6 +15,9 @@
     "@repo/ui": "0.0.0"
   },
   "changesets": [
+    "auth-overhaul",
+    "chatty-actors-fetch",
+    "moody-buckets-repeat",
     "silly-geese-agree"
   ]
 }

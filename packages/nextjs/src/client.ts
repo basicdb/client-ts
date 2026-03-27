@@ -7,6 +7,7 @@
 export {
   useBasic,
   BasicProvider,
+  BasicDevToolbar,
   useQuery,
   RemoteDB,
   RemoteCollection,
@@ -22,6 +23,8 @@ export type {
   LocalStorageAdapter,
   BasicProviderProps,
   BasicContextType,
+  BasicSchemaDevInfo,
+  BasicDevToolbarProps,
   AuthResult,
   BasicDB,
   Collection,

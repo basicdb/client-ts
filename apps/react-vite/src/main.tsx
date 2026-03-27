@@ -22,6 +22,7 @@ createRoot(document.getElementById('root')!).render(
     <BasicProvider 
       schema={basic_schema}  
       debug
+      devToolbar
       dbMode={dbMode}
       // auth={{ server_url: "http://localhost:3003", scopes: ['profile', 'email'], ws_url: "x" }}
     >

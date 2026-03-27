@@ -1,17 +1,47 @@
 // Network utilities for Basic React package
+import semver from 'semver'
 import { log } from '../config'
-import { version as currentVersion } from '../../package.json'
+import { version as pkgVersion } from '../../package.json'
 
 export function isDevelopment(debug?: boolean): boolean {
+    if (debug === true) return true
+    if (typeof process !== 'undefined' && process.env.NODE_ENV === 'development') return true
+    if (typeof window === 'undefined' || !window.location) return false
+    const host = window.location.hostname
     return (
-        window.location.hostname === 'localhost' ||
-        window.location.hostname === '127.0.0.1' ||
-        window.location.hostname.includes('localhost') ||
-        window.location.hostname.includes('127.0.0.1') ||
-        window.location.hostname.includes('.local') ||
-        process.env.NODE_ENV === 'development' ||
-        debug === true
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host.includes('localhost') ||
+        host.includes('127.0.0.1') ||
+        host.includes('.local')
     )
+}
+
+function normalizeVersion(v: string | null | undefined): string | null {
+    if (v == null) return null
+    const t = String(v).trim()
+    return t.length ? t : null
+}
+
+function versionsMatch(a: string, b: string): boolean {
+    const na = a.trim()
+    const nb = b.trim()
+    if (na === nb) return true
+    const va = semver.valid(na)
+    const vb = semver.valid(nb)
+    if (va && vb) return semver.eq(va, vb)
+    return false
+}
+
+/** Use npm `beta` dist-tag when the installed version is a semver prerelease whose first id is `beta`. */
+function usesBetaDistTag(version: string): boolean {
+    const pre = semver.prerelease(version)
+    const id = pre?.[0]
+    return typeof id === 'string' && id.toLowerCase() === 'beta'
+}
+
+type NpmInstallMeta = {
+    'dist-tags'?: { latest?: string; beta?: string }
 }
 
 export async function checkForNewVersion(): Promise<{ 
@@ -20,25 +50,48 @@ export async function checkForNewVersion(): Promise<{
     currentVersion: string | null 
 }> {
     try {
-        const isBeta = currentVersion.includes('beta')
+        const currentVersion = normalizeVersion(pkgVersion)
+        if (!currentVersion) {
+            return { hasNewVersion: false, latestVersion: null, currentVersion: null }
+        }
 
-        const response = await fetch(`https://registry.npmjs.org/@basictech/react/${isBeta ? 'beta' : 'latest'}`);
+        const response = await fetch('https://registry.npmjs.org/@basictech/react', {
+            headers: { Accept: 'application/vnd.npm.install-v1+json' },
+        })
         if (!response.ok) {
             throw new Error('Failed to fetch version from npm');
         }
 
-        const data = await response.json();
-        const latestVersion = data.version;
+        const data = (await response.json()) as NpmInstallMeta
+        const distTags = data['dist-tags'] ?? {}
+        const rawRegistry =
+            usesBetaDistTag(currentVersion)
+                ? distTags.beta ?? distTags.latest
+                : distTags.latest
+        const latestVersion = normalizeVersion(rawRegistry ?? null)
+        if (!latestVersion) {
+            throw new Error('Missing dist-tags from npm registry')
+        }
 
-        if (latestVersion !== currentVersion) {
+        const same = versionsMatch(currentVersion, latestVersion)
+
+        if (!same && isDevelopment()) {
+            log('[basic] version check mismatch:', {
+                currentVersion,
+                registryVersion: latestVersion,
+                channel: usesBetaDistTag(currentVersion) ? 'beta' : 'latest',
+            })
+        }
+
+        if (!same) {
             console.warn('[basic] New version available:', latestVersion, `\nrun "npm install @basictech/react@${latestVersion}" to update`);
         }
-        if (isBeta) {
+        if (usesBetaDistTag(currentVersion)) {
             log('thank you for being on basictech/react beta :)')
         }
      
         return {
-            hasNewVersion: currentVersion !== latestVersion,
+            hasNewVersion: !same,
             latestVersion,
             currentVersion
         };

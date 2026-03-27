@@ -1,5 +1,23 @@
 # 1.3.4
 
+## 0.8.0-beta.2
+
+### Minor Changes
+
+- added debug bar
+
+## 0.8.0-beta.1
+
+### Minor Changes
+
+- uth updates
+
+## 0.8.0-beta.0
+
+### Minor Changes
+
+- Overhaul auth system: extract AuthManager, add PKCE, cross-tab sync, proactive token refresh, enriched error handling, and fix DELETE Content-Type issue
+
 ## Unreleased
 
 ### Patch Changes
@@ -209,7 +227,6 @@
 - 96e0156: update schema validation
 - cda3d16: add schema validation
 - 2c898ae: update useQuery hook
-
   - no need to pass param as a function, can now enter query directly
   - defaults to empty array when loading
 
@@ -265,7 +282,6 @@
 ### Minor Changes
 
 - update useQuery hook
-
   - no need to pass param as a function, can now enter query directly
   - defaults to empty array when loading
 

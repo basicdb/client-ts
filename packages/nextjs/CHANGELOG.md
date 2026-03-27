@@ -1,5 +1,34 @@
 # @basictech/nextjs
 
+## 0.7.0-beta.2
+
+### Minor Changes
+
+- added debug bar
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.8.0-beta.2
+
+## 0.7.0-beta.1
+
+### Minor Changes
+
+- uth updates
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.8.0-beta.1
+
+## 0.6.1-beta.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.8.0-beta.0
+
 ## 0.6.0
 
 ### Minor Changes
@@ -261,7 +290,6 @@
 - 96e0156: update schema validation
 - cda3d16: add schema validation
 - 2c898ae: update useQuery hook
-
   - no need to pass param as a function, can now enter query directly
   - defaults to empty array when loading
 
@@ -342,7 +370,6 @@
 ### Minor Changes
 
 - update useQuery hook
-
   - no need to pass param as a function, can now enter query directly
   - defaults to empty array when loading
 

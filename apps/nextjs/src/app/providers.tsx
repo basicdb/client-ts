@@ -52,6 +52,6 @@ export function Providers({ children }: ProvidersProps) {
 
   return (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    <BasicProvider schema={schema} debug dbMode={dbMode} children={children as any} />
+    <BasicProvider schema={schema} debug devToolbar dbMode={dbMode} children={children as any} />
   )
 }
