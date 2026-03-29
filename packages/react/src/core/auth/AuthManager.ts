@@ -486,7 +486,10 @@ export class AuthManager {
     }
 
     /**
-     * Register online/offline handlers that retry pending refreshes.
+     * Register online/offline and visibility handlers that retry pending
+     * refreshes and proactively refresh tokens when the app resumes from
+     * background (critical for PWAs and mobile browsers where timers are
+     * frozen while backgrounded).
      * Returns a cleanup function for useEffect teardown.
      */
     setupNetworkListeners(): () => void {
@@ -510,12 +513,34 @@ export class AuthManager {
             this.isOnline = false
         }
 
+        const handleVisibilityChange = () => {
+            if (typeof document !== 'undefined' && document.visibilityState === 'visible' && this.isSignedIn) {
+                log('App became visible - checking token freshness')
+                this.getToken().catch(err => {
+                    log('Token refresh on visibility resume failed:', err)
+                })
+            }
+        }
+
+        const handlePageShow = (event: PageTransitionEvent) => {
+            if (event.persisted) handleVisibilityChange()
+        }
+
         window.addEventListener('online', handleOnline)
         window.addEventListener('offline', handleOffline)
+
+        if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', handleVisibilityChange)
+            window.addEventListener('pageshow', handlePageShow)
+        }
 
         return () => {
             window.removeEventListener('online', handleOnline)
             window.removeEventListener('offline', handleOffline)
+            if (typeof document !== 'undefined') {
+                document.removeEventListener('visibilitychange', handleVisibilityChange)
+                window.removeEventListener('pageshow', handlePageShow)
+            }
         }
     }
 
@@ -772,9 +797,15 @@ export class AuthManager {
                         throw new Error('Network issue - refresh will be retried when online')
                     }
 
-                    await this.clearStoredAuth()
-                    this.resetAuthState()
-                    this.notify()
+                    // Only clear stored auth on definitive OAuth rejection.
+                    // Transient server errors (500, 503, etc.) should NOT wipe
+                    // the refresh token — the user can retry later.
+                    const definitiveErrors = ['invalid_grant', 'invalid_client', 'unauthorized_client']
+                    if (typeof token.error === 'string' && definitiveErrors.includes(token.error)) {
+                        await this.clearStoredAuth()
+                        this.resetAuthState()
+                        this.notify()
+                    }
                     throw new Error(`Token refresh failed: ${token.error}`)
                 } else {
                     this.token = token

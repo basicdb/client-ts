@@ -268,6 +268,10 @@ export function BasicProvider({
                     debug: debug,
                     onAuthError: (error) => {
                         log('RemoteDB auth error:', error)
+                        if (error.errorType === 'forbidden') {
+                            log('403 Forbidden - user lacks required scope, not signing out')
+                            return
+                        }
                         handleSignOut()
                     },
                 })

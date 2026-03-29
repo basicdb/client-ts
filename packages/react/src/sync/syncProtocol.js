@@ -137,9 +137,37 @@ export const syncProtocol = function () {
         }
       };
 
+      // When the page becomes visible again (e.g. PWA/mobile browser resuming
+      // from background), the scheduled setTimeout for token refresh may have
+      // been frozen by the browser. Force-refresh the token and re-send it to
+      // the server so the WebSocket connection stays authenticated.
+      function handleVisibilityResume() {
+        if (typeof document !== 'undefined' && document.visibilityState === 'visible' && ws.readyState === WebSocket.OPEN) {
+          log("Page became visible - refreshing token for WebSocket");
+          resolveGetToken()({ forceRefresh: true }).then(function(newToken) {
+            if (ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: "tokenUpdate", authToken: newToken }));
+              scheduleTokenRefresh(newToken);
+            }
+          }).catch(function(err) {
+            log("Token refresh on visibility resume failed:", err);
+          });
+        }
+      }
+      if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', handleVisibilityResume);
+      }
+
+      function cleanupVisibilityListener() {
+        if (typeof document !== 'undefined') {
+          document.removeEventListener('visibilitychange', handleVisibilityResume);
+        }
+      }
+
       // If network down or other error, tell the framework to reconnect again in some time:
       ws.onerror = function (event) {
         clearRefreshTimer();
+        cleanupVisibilityListener();
         ws.close();
         log("ws.onerror", event);
         onError(event?.message, RECONNECT_DELAY);
@@ -148,6 +176,7 @@ export const syncProtocol = function () {
       // If socket is closed (network disconnected), inform framework and make it reconnect
       ws.onclose = function (event) {
         clearRefreshTimer();
+        cleanupVisibilityListener();
         onError("Socket closed: " + event.reason, RECONNECT_DELAY);
       };
 
@@ -211,6 +240,7 @@ export const syncProtocol = function () {
                 },
                 disconnect: function () {
                   clearRefreshTimer();
+                  cleanupVisibilityListener();
                   ws.close();
                 },
               });
