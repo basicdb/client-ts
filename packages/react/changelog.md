@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.8.0-beta.3
+
+### Patch Changes
+
+- Fix PWA/mobile logout issues: harden auth for offline resilience, prevent spurious logouts on transient server errors, proactive token refresh on app resume, and fix potential deadlock in token refresh flow
+
 ## 0.8.0-beta.2
 
 ### Minor Changes

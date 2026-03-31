@@ -17,6 +17,7 @@
   "changesets": [
     "auth-overhaul",
     "chatty-actors-fetch",
+    "fix-pwa-logout",
     "moody-buckets-repeat",
     "silly-geese-agree"
   ]

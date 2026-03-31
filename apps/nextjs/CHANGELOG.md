@@ -1,5 +1,11 @@
 # nextjs
 
+## 0.4.0-beta.3
+
+### Patch Changes
+
+- @basictech/nextjs@0.7.0-beta.3
+
 ## 0.4.0-beta.2
 
 ### Minor Changes

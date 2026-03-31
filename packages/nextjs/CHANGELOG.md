@@ -1,5 +1,12 @@
 # @basictech/nextjs
 
+## 0.7.0-beta.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @basictech/react@0.8.0-beta.3
+
 ## 0.7.0-beta.2
 
 ### Minor Changes
