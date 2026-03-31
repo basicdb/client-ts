@@ -110,7 +110,7 @@ export function cleanOAuthParamsFromUrl(): void {
         const url = new URL(window.location.href)
         url.searchParams.delete('code')
         url.searchParams.delete('state')
-        window.history.pushState({}, document.title, url.pathname + url.search)
+        window.history.replaceState({}, document.title, url.pathname + url.search)
         log('Cleaned OAuth parameters from URL')
     }
 }

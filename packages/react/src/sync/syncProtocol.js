@@ -142,7 +142,7 @@ export const syncProtocol = function () {
       // been frozen by the browser. Force-refresh the token and re-send it to
       // the server so the WebSocket connection stays authenticated.
       function handleVisibilityResume() {
-        if (typeof document !== 'undefined' && document.visibilityState === 'visible' && ws.readyState === WebSocket.OPEN) {
+        if (document.visibilityState === 'visible' && ws.readyState === WebSocket.OPEN) {
           log("Page became visible - refreshing token for WebSocket");
           resolveGetToken()({ forceRefresh: true }).then(function(newToken) {
             if (ws.readyState === WebSocket.OPEN) {

@@ -223,8 +223,11 @@ export class AuthManager {
                 const refreshToken = await this.storage.get(STORAGE_KEYS.REFRESH_TOKEN)
                 if (refreshToken) {
                     log('Found refresh token in storage, attempting to refresh access token')
-                    this.exchangeToken(refreshToken, true).catch((error) => {
+                    this.exchangeToken(refreshToken, true).catch(async (error) => {
                         log('Error fetching refresh token:', error)
+                        if (this.isNetworkError(error)) {
+                            await this.restoreCachedUser()
+                        }
                     })
                 } else {
                     const cachedUserInfo = await this.storage.get(STORAGE_KEYS.USER_INFO)
@@ -300,7 +303,8 @@ export class AuthManager {
                 log('Token refresh already in progress, waiting...')
                 try {
                     const newToken = await this.refreshPromise
-                    return newToken?.access_token || ''
+                    if (!newToken?.access_token) throw new Error('Token refresh returned empty access token')
+                    return newToken.access_token
                 } catch (error) {
                     log('In-flight refresh failed:', error)
                     if (this.isNetworkError(error)) {
@@ -315,7 +319,8 @@ export class AuthManager {
             if (refreshToken) {
                 try {
                     const newToken = await this.exchangeToken(refreshToken, true)
-                    return newToken?.access_token || ''
+                    if (!newToken?.access_token) throw new Error('Token refresh returned empty access token')
+                    return newToken.access_token
                 } catch (error) {
                     log('Failed to refresh expired token:', error)
                     if (this.isNetworkError(error)) {
@@ -329,7 +334,8 @@ export class AuthManager {
             }
         }
 
-        return this.token.access_token || ''
+        if (!this.token.access_token) throw new Error('Token exists but access_token is empty')
+        return this.token.access_token
     }
 
     async getSignInUrl(redirectUri?: string, endpoints?: PdsEndpoints): Promise<string> {
@@ -342,7 +348,7 @@ export class AuthManager {
         const pdsEndpoints = endpoints || this.defaultPdsEndpoints()
         await this.storage.set(STORAGE_KEYS.PDS_ENDPOINTS, JSON.stringify(pdsEndpoints))
 
-        const randomState = Math.random().toString(36).substring(6)
+        const randomState = base64UrlEncode(crypto.getRandomValues(new Uint8Array(16)))
         await this.storage.set(STORAGE_KEYS.AUTH_STATE, randomState)
 
         const redirectUrl = redirectUri || window.location.href
@@ -514,7 +520,7 @@ export class AuthManager {
         }
 
         const handleVisibilityChange = () => {
-            if (typeof document !== 'undefined' && document.visibilityState === 'visible' && this.isSignedIn) {
+            if (document.visibilityState === 'visible' && this.isSignedIn) {
                 log('App became visible - checking token freshness')
                 this.getToken().catch(err => {
                     log('Token refresh on visibility resume failed:', err)
@@ -522,16 +528,11 @@ export class AuthManager {
             }
         }
 
-        const handlePageShow = (event: PageTransitionEvent) => {
-            if (event.persisted) handleVisibilityChange()
-        }
-
         window.addEventListener('online', handleOnline)
         window.addEventListener('offline', handleOffline)
 
         if (typeof document !== 'undefined') {
             document.addEventListener('visibilitychange', handleVisibilityChange)
-            window.addEventListener('pageshow', handlePageShow)
         }
 
         return () => {
@@ -539,7 +540,6 @@ export class AuthManager {
             window.removeEventListener('offline', handleOffline)
             if (typeof document !== 'undefined') {
                 document.removeEventListener('visibilitychange', handleVisibilityChange)
-                window.removeEventListener('pageshow', handlePageShow)
             }
         }
     }
@@ -606,39 +606,25 @@ export class AuthManager {
             if (decoded.sub) this.did = decoded.sub
             if (decoded.scope) this.tokenScope = decoded.scope
 
-            const expirationBuffer = 5
-            const isExpired = decoded.exp && decoded.exp < (Date.now() / 1000) + expirationBuffer
-
-            if (isExpired) {
-                log('token is expired - refreshing ...')
-                const refreshToken = this.token.refresh_token
-                if (!refreshToken) {
-                    log('Error: No refresh token available for expired token')
-                    this.isAuthReady = true
-                    this.notify()
-                    return
-                }
-                try {
-                    const newToken = await this.exchangeToken(refreshToken, true)
-                    await this.fetchUser(newToken?.access_token || '')
-                } catch (error) {
-                    log('Failed to refresh token in processNewToken:', error)
-                    if (this.isNetworkError(error)) {
-                        log('Network issue - continuing with expired token until online')
-                        await this.fetchUser(this.token.access_token)
-                    } else {
-                        this.isAuthReady = true
-                        this.notify()
-                    }
-                }
-            } else {
-                await this.fetchUser(this.token.access_token)
-            }
+            await this.fetchUser(this.token.access_token)
         } catch (error) {
             log('Error processing token:', error)
             this.isAuthReady = true
             this.notify()
         }
+    }
+
+    private async restoreCachedUser(): Promise<void> {
+        const cached = await this.storage.get(STORAGE_KEYS.USER_INFO)
+        if (cached) {
+            try {
+                this.user = JSON.parse(cached)
+                this.isSignedIn = true
+                log('Restored cached user info for offline mode')
+            } catch { /* corrupted cache, ignore */ }
+        }
+        this.isAuthReady = true
+        this.notify()
     }
 
     private async fetchUser(accessToken: string): Promise<void> {
@@ -682,8 +668,12 @@ export class AuthManager {
             this.notify()
         } catch (error) {
             log('Failed to fetch user info:', error)
-            this.isAuthReady = true
-            this.notify()
+            if (this.isNetworkError(error)) {
+                await this.restoreCachedUser()
+            } else {
+                this.isAuthReady = true
+                this.notify()
+            }
         }
     }
 
@@ -831,7 +821,9 @@ export class AuthManager {
             } catch (error) {
                 log('Token refresh error:', error)
 
-                if (!this.isNetworkError(error)) {
+                const msg = error instanceof Error ? error.message : ''
+                const alreadyHandled = msg.startsWith('Token refresh failed:')
+                if (!alreadyHandled && !this.isNetworkError(error)) {
                     await this.clearStoredAuth()
                     this.resetAuthState()
                     this.notify()
@@ -881,6 +873,7 @@ export class AuthManager {
     }
 
     private isNetworkError(error: unknown): boolean {
+        if (error instanceof TypeError) return true
         if (error instanceof Error) {
             return error.message.includes('offline') || error.message.includes('Network')
         }
