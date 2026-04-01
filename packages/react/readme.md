@@ -23,11 +23,11 @@ export const schema = {
       type: "collection",
       fields: {
         title: { type: "string", indexed: true },
-        completed: { type: "boolean", indexed: true }
-      }
-    }
-  }
-}
+        completed: { type: "boolean", indexed: true },
+      },
+    },
+  },
+};
 ```
 
 ### 2. Add the Provider
@@ -35,15 +35,15 @@ export const schema = {
 Wrap your app with `BasicProvider`:
 
 ```tsx
-import { BasicProvider } from '@basictech/react'
-import { schema } from './basic.config'
+import { BasicProvider } from "@basictech/react";
+import { schema } from "./basic.config";
 
 function App() {
   return (
     <BasicProvider schema={schema}>
       <YourApp />
     </BasicProvider>
-  )
+  );
 }
 ```
 
@@ -52,23 +52,23 @@ function App() {
 Access auth and database in any component:
 
 ```tsx
-import { useBasic, useQuery } from '@basictech/react'
+import { useBasic, useQuery } from "@basictech/react";
 
 function TodoList() {
-  const { db, isSignedIn, signIn, signOut, user } = useBasic()
-  
+  const { db, isSignedIn, signIn, signOut, user } = useBasic();
+
   // Live query - automatically updates when data changes
-  const todos = useQuery(() => db.collection('todos').getAll())
+  const todos = useQuery(() => db.collection("todos").getAll());
 
   const addTodo = async () => {
-    await db.collection('todos').add({
-      title: 'New todo',
-      completed: false
-    })
-  }
+    await db.collection("todos").add({
+      title: "New todo",
+      completed: false,
+    });
+  };
 
   if (!isSignedIn) {
-    return <button onClick={signIn}>Sign In</button>
+    return <button onClick={signIn}>Sign In</button>;
   }
 
   return (
@@ -76,13 +76,13 @@ function TodoList() {
       <p>Welcome, {user?.email}</p>
       <button onClick={addTodo}>Add Todo</button>
       <ul>
-        {todos?.map(todo => (
+        {todos?.map((todo) => (
           <li key={todo.id}>{todo.title}</li>
         ))}
       </ul>
       <button onClick={signOut}>Sign Out</button>
     </div>
-  )
+  );
 }
 ```
 
@@ -96,21 +96,21 @@ Root provider component. Must wrap your entire app.
 
 ```tsx
 <BasicProvider
-  schema={schema}           // Required: Your Basic schema
-  debug={false}             // Optional: Enable console logging
-  dbMode="sync"             // Optional: "sync" (default) or "remote"
-  devToolbar={false}        // Optional: Floating dev status bar (localhost / dev / debug)
+  schema={schema} // Required: Your Basic schema
+  debug={false} // Optional: Enable console logging
+  dbMode="sync" // Optional: "sync" (default) or "remote"
+  devToolbar={false} // Optional: Floating dev status bar (localhost / dev / debug)
 />
 ```
 
 #### Props
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `schema` | `object` | required | Schema with `project_id` and `tables` |
-| `debug` | `boolean` | `false` | Enable debug logging |
-| `dbMode` | `"sync" \| "remote"` | `"sync"` | Database mode |
-| `devToolbar` | `boolean` | `false` | Show the Basic dev toolbar (only when `localhost`, `NODE_ENV === "development"`, or `debug={true}`) |
+| Prop         | Type                 | Default  | Description                                                                                         |
+| ------------ | -------------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `schema`     | `object`             | required | Schema with `project_id` and `tables`                                                               |
+| `debug`      | `boolean`            | `false`  | Enable debug logging                                                                                |
+| `dbMode`     | `"sync" \| "remote"` | `"sync"` | Database mode                                                                                       |
+| `devToolbar` | `boolean`            | `false`  | Show the Basic dev toolbar (only when `localhost`, `NODE_ENV === "development"`, or `debug={true}`) |
 
 #### Database Modes
 
@@ -126,40 +126,40 @@ Main hook for accessing auth and database.
 ```tsx
 const {
   // Auth state
-  isReady,        // boolean - SDK initialized
-  isSignedIn,     // boolean - User authenticated
-  user,           // { id, email, ... } | null
-  
+  isReady, // boolean - SDK initialized
+  isSignedIn, // boolean - Session is valid
+  user, // { id, email, ... } | null (may be null briefly during profile refresh/recovery)
+
   // Auth methods
-  signIn,         // () => void - Redirect to login
-  signOut,        // () => void - Clear session
+  signIn, // () => void - Redirect to login
+  signOut, // () => void - Clear session
   signInWithCode, // (code, state?) => Promise - Manual OAuth
-  getSignInUrl,   // (redirectUri?) => string - Get OAuth URL
-  getToken,       // () => Promise<string> - Get access token
-  
+  getSignInUrl, // (redirectUri?) => string - Get OAuth URL
+  getToken, // () => Promise<string> - Get access token
+
   // Database
-  db,             // Database instance
-  dbStatus,       // DBStatus - see below
-  dbMode,         // "sync" | "remote"
+  db, // Database instance
+  dbStatus, // DBStatus - see below
+  dbMode, // "sync" | "remote"
 
   // Dev / schema snapshot (for custom tooling)
-  devInfo,              // BasicSchemaDevInfo | null — local vs remote schema status
-  refreshSchemaStatus,  // () => Promise<void> — re-fetch schema status from API
-} = useBasic()
+  devInfo, // BasicSchemaDevInfo | null — local vs remote schema status
+  refreshSchemaStatus, // () => Promise<void> — re-fetch schema status from API
+} = useBasic();
 ```
 
 #### `DBStatus` (sync connection state)
 
 When `dbMode === "sync"`, `dbStatus` is one of:
 
-| Value | Description |
-|-------|-------------|
-| `LOADING` | SDK initializing |
-| `OFFLINE` | Not connected |
-| `CONNECTING` | Connecting to sync server |
-| `ONLINE` | Connected and idle |
-| `SYNCING` | Syncing data |
-| `ERROR` | Sync error |
+| Value              | Description                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| `LOADING`          | SDK initializing                                                                                                  |
+| `OFFLINE`          | Not connected                                                                                                     |
+| `CONNECTING`       | Connecting to sync server                                                                                         |
+| `ONLINE`           | Connected and idle                                                                                                |
+| `SYNCING`          | Syncing data                                                                                                      |
+| `ERROR`            | Sync error                                                                                                        |
 | `ERROR_WILL_RETRY` | Sync error but client will retry (e.g. expired token). Use this to show "Reconnecting…" or trigger token refresh. |
 
 Import the enum for comparisons: `import { useBasic, DBStatus } from '@basictech/react'`.
@@ -181,12 +181,12 @@ A small floating bar (similar in spirit to Next.js dev indicators) shows **auth*
 **Option B — place the component yourself** (must be under `BasicProvider`; respects the same visibility rules, or pass `debug` to force):
 
 ```tsx
-import { BasicDevToolbar } from '@basictech/react'
+import { BasicDevToolbar } from "@basictech/react";
 
 <BasicProvider schema={schema}>
   <App />
   <BasicDevToolbar />
-</BasicProvider>
+</BasicProvider>;
 ```
 
 The expanded panel includes **Refresh schema** (re-runs the remote schema check) and **Copy debug info** (JSON snapshot **without** raw access tokens). You can also read `devInfo` and call `refreshSchemaStatus()` from `useBasic()` for your own UI.
@@ -198,18 +198,18 @@ The expanded panel includes **Refresh schema** (re-runs the remote schema check)
 Live query hook - automatically re-renders when data changes.
 
 ```tsx
-import { useQuery } from '@basictech/react'
+import { useQuery } from "@basictech/react";
 
 // Get all items
-const todos = useQuery(() => db.collection('todos').getAll())
+const todos = useQuery(() => db.collection("todos").getAll());
 
 // With type safety
 interface Todo {
-  id: string
-  title: string
-  completed: boolean
+  id: string;
+  title: string;
+  completed: boolean;
 }
-const todos = useQuery(() => db.collection<Todo>('todos').getAll())
+const todos = useQuery(() => db.collection<Todo>("todos").getAll());
 ```
 
 > **Note:** Only works in `sync` mode. In `remote` mode, use manual fetching.
@@ -223,44 +223,44 @@ const todos = useQuery(() => db.collection<Todo>('todos').getAll())
 Access a collection by name.
 
 ```tsx
-const { db } = useBasic()
-const todos = db.collection('todos')
+const { db } = useBasic();
+const todos = db.collection("todos");
 ```
 
 #### Collection Methods
 
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `getAll()` | `Promise<T[]>` | Get all records |
-| `get(id)` | `Promise<T \| null>` | Get one record by ID |
-| `add(data)` | `Promise<T>` | Create new record (returns with ID) |
-| `put(data)` | `Promise<T>` | Upsert record (requires ID) |
-| `update(id, data)` | `Promise<T \| null>` | Partial update |
-| `delete(id)` | `Promise<boolean>` | Delete record |
-| `filter(fn)` | `Promise<T[]>` | Filter with predicate |
+| Method             | Returns              | Description                         |
+| ------------------ | -------------------- | ----------------------------------- |
+| `getAll()`         | `Promise<T[]>`       | Get all records                     |
+| `get(id)`          | `Promise<T \| null>` | Get one record by ID                |
+| `add(data)`        | `Promise<T>`         | Create new record (returns with ID) |
+| `put(data)`        | `Promise<T>`         | Upsert record (requires ID)         |
+| `update(id, data)` | `Promise<T \| null>` | Partial update                      |
+| `delete(id)`       | `Promise<boolean>`   | Delete record                       |
+| `filter(fn)`       | `Promise<T[]>`       | Filter with predicate               |
 
 #### Examples
 
 ```tsx
 // Create
-const todo = await db.collection('todos').add({
-  title: 'Buy milk',
-  completed: false
-})
-console.log(todo.id) // Auto-generated ID
+const todo = await db.collection("todos").add({
+  title: "Buy milk",
+  completed: false,
+});
+console.log(todo.id); // Auto-generated ID
 
 // Read
-const allTodos = await db.collection('todos').getAll()
-const oneTodo = await db.collection('todos').get('some-id')
+const allTodos = await db.collection("todos").getAll();
+const oneTodo = await db.collection("todos").get("some-id");
 
 // Update
-await db.collection('todos').update('some-id', { completed: true })
+await db.collection("todos").update("some-id", { completed: true });
 
 // Delete
-await db.collection('todos').delete('some-id')
+await db.collection("todos").delete("some-id");
 
 // Filter
-const incomplete = await db.collection('todos').filter(t => !t.completed)
+const incomplete = await db.collection("todos").filter((t) => !t.completed);
 ```
 
 ---
@@ -272,15 +272,15 @@ const incomplete = await db.collection('todos').filter(t => !t.completed)
 For custom OAuth handling (mobile apps, popups, etc.):
 
 ```tsx
-const { signInWithCode, getSignInUrl } = useBasic()
+const { signInWithCode, getSignInUrl } = useBasic();
 
 // Get OAuth URL with custom redirect
-const url = getSignInUrl('myapp://callback')
+const url = getSignInUrl("myapp://callback");
 
 // Exchange code for session
-const result = await signInWithCode(code, state)
+const result = await signInWithCode(code, state);
 if (result.success) {
-  console.log('Signed in!')
+  console.log("Signed in!");
 }
 ```
 
@@ -295,22 +295,24 @@ For server-rendered apps or when you don't need offline support:
 ```
 
 In remote mode:
+
 - Data is fetched via REST API
 - No IndexedDB storage
 - `useQuery` won't auto-update (use manual refresh)
 - Requires authentication for all operations
+- Auth request failures are surfaced to the caller; recoverable 401s do not automatically sign the user out
 
 ### Error Handling
 
 ```tsx
-import { NotAuthenticatedError } from '@basictech/react'
+import { NotAuthenticatedError } from "@basictech/react";
 
 try {
-  await db.collection('todos').add({ title: 'Test' })
+  await db.collection("todos").add({ title: "Test" });
 } catch (error) {
   if (error instanceof NotAuthenticatedError) {
     // User needs to sign in
-    signIn()
+    signIn();
   }
 }
 ```
@@ -323,21 +325,21 @@ Full TypeScript support with generics:
 
 ```tsx
 interface Todo {
-  id: string
-  title: string
-  completed: boolean
-  createdAt: number
+  id: string;
+  title: string;
+  completed: boolean;
+  createdAt: number;
 }
 
 // Type-safe collection
-const todos = db.collection<Todo>('todos')
+const todos = db.collection<Todo>("todos");
 
 // All methods are typed
 const todo = await todos.add({
-  title: 'Test',
+  title: "Test",
   completed: false,
-  createdAt: Date.now()
-})
+  createdAt: Date.now(),
+});
 // todo is typed as Todo
 ```
 
