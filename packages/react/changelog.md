@@ -1,5 +1,11 @@
 # 1.3.4
 
+## 0.8.0-beta.4
+
+### Patch Changes
+
+- Auth status state machine and session reconciliation: add `AuthStatus` type (`bootstrapping`, `authenticated`, `recovering`, `reauth_required`, `signed_out`), replace `window.location.reload()` cross-tab handlers with in-place state updates, add `reconcileSession` for sync/visibility/online recovery, handle `tokenUpdateAck` in sync protocol, and expose `authStatus` + `authErrorCode` from `useBasic()`
+
 ## 0.8.0-beta.3
 
 ### Patch Changes

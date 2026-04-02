@@ -1,6 +1,6 @@
 {
   "name": "@basictech/nextjs",
-  "version": "0.7.0-beta.3",
+  "version": "0.7.0-beta.4",
   "description": "",
   "private": false,
   "publishConfig": {
@@ -38,7 +38,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@basictech/react": "0.8.0-beta.3"
+    "@basictech/react": "0.8.0-beta.4"
   },
   "devDependencies": {
     "@repo/typescript-config": "*",
