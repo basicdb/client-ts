@@ -34,6 +34,18 @@ const randomName = () => {
   return `${adj}-${noun}-${num}`
 }
 
+const decodeJwtPayload = (token: string) => {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return null
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    return JSON.parse(atob(padded))
+  } catch {
+    return null
+  }
+}
+
 // Helper to set dbMode in URL (triggers page reload)
 const setDbModeInUrl = (mode: DBMode) => {
   const url = new URL(window.location.href)
@@ -53,6 +65,15 @@ interface FooItem {
 interface QueryResult {
   type: 'get' | 'filter'
   data?: FooItem | FooItem[] | null
+  error?: string
+}
+
+interface SessionProbe {
+  timestamp: number
+  url: string
+  status: number
+  ok: boolean
+  data?: unknown
   error?: string
 }
 
@@ -85,6 +106,8 @@ function App() {
     dbMode,
     isReady,
     isSignedIn,
+    authStatus,
+    authErrorCode,
     user,
     did,
     scope,
@@ -100,11 +123,12 @@ function App() {
   const [newFooItem, setNewFooItem] = useState({ name: '', count: 0, is_done: false })
   const [placeholder, setPlaceholder] = useState({ name: randomName(), count: Math.floor(Math.random() * 100) })
   const [authCode, setAuthCode] = useState('')
-  const [authState, setAuthState] = useState('')
+  const [authStateParam, setAuthStateParam] = useState('')
   const [remoteFooItems, setRemoteFooItems] = useState<FooItem[]>([])
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [storageValues, setStorageValues] = useState<StorageValues>({})
   const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [sessionProbe, setSessionProbe] = useState<SessionProbe | null>(null)
   const [queryId, setQueryId] = useState('')
   const [queryResult, setQueryResult] = useState<QueryResult | null>(null)
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set())
@@ -125,6 +149,8 @@ function App() {
   const [opTimings, setOpTimings] = useState<OpTiming[]>([])
   const [isOffline, setIsOffline] = useState(!navigator.onLine)
   const prevDbStatus = useRef(dbStatus)
+  const prevAuthStatus = useRef(authStatus)
+  const prevAuthErrorCode = useRef(authErrorCode)
   const statusChangeTime = useRef(performance.now())
 
   // Add entry to event log
@@ -175,6 +201,24 @@ function App() {
       statusChangeTime.current = now
     }
   }, [dbStatus, addLog])
+
+  useEffect(() => {
+    if (
+      authStatus === prevAuthStatus.current &&
+      authErrorCode === prevAuthErrorCode.current
+    ) {
+      return
+    }
+
+    addLog(
+      authErrorCode ? 'error' : 'status',
+      `auth ${prevAuthStatus.current} → ${authStatus}`,
+      authErrorCode || undefined,
+    )
+
+    prevAuthStatus.current = authStatus
+    prevAuthErrorCode.current = authErrorCode
+  }, [authErrorCode, authStatus, addLog])
 
   // Track network online/offline
   useEffect(() => {
@@ -239,7 +283,7 @@ function App() {
   // Load storage values on mount and when auth state changes
   useEffect(() => {
     refreshStorageValues()
-  }, [isSignedIn, isReady, refreshStorageValues])
+  }, [isSignedIn, isReady, authStatus, authErrorCode, refreshStorageValues])
 
   // Auto-fetch token and pre-fill DID resolver on sign-in
   useEffect(() => {
@@ -256,8 +300,9 @@ function App() {
     if (!isSignedIn) {
       setTokenExpiry(null)
       setAccessToken(null)
+      setSessionProbe(null)
     }
-  }, [isSignedIn])
+  }, [isSignedIn, accessToken, getToken])
   
   // For sync mode, use live query
   const syncFooItems = useQuery(() => dbMode === 'sync' ? db.collection('foo').getAll() : Promise.resolve([]))
@@ -279,6 +324,29 @@ function App() {
       setIsRefreshing(false)
     }
   }, [db, dbMode, timed])
+
+  const getCurrentPdsUrl = useCallback(() => {
+    const storedEndpoints = localStorage.getItem(STORAGE_KEYS.PDS_ENDPOINTS)
+    if (storedEndpoints) {
+      try {
+        const parsed = JSON.parse(storedEndpoints) as { pds_url?: string }
+        if (parsed.pds_url) {
+          return parsed.pds_url
+        }
+      } catch {
+        // Ignore malformed cached endpoint data in the debug app.
+      }
+    }
+
+    if (accessToken) {
+      const payload = decodeJwtPayload(accessToken)
+      if (typeof payload?.iss === 'string' && payload.iss.startsWith('http')) {
+        return payload.iss
+      }
+    }
+
+    return 'https://pds.basic.id'
+  }, [accessToken])
 
   // Auto-fetch on mount for remote mode
   useEffect(() => {
@@ -358,6 +426,23 @@ function App() {
     }
   }
 
+  const testForceRefreshToken = async () => {
+    try {
+      const token = await timed('getToken(forceRefresh)', () =>
+        getToken({ forceRefresh: true }),
+      )
+      console.log('getToken({ forceRefresh: true }) result:', token)
+      setAccessToken(token)
+      const decoded = decodeToken(token)
+      setTokenExpiry(decoded?.exp ?? null)
+      await testFetchCurrentSession(token)
+    } catch (error) {
+      console.error('getToken({ forceRefresh: true }) error:', error)
+      setAccessToken(null)
+      setTokenExpiry(null)
+    }
+  }
+
   const testSignIn = async () => {
     addLog('status', 'signIn() initiated')
     await signIn()
@@ -390,11 +475,77 @@ function App() {
 
   const testSignInWithCode = async () => {
     try {
-      const result = await timed('signInWithCode()', () => signInWithCode(authCode, authState))
+      const result = await timed('signInWithCode()', () =>
+        signInWithCode(authCode, authStateParam),
+      )
       console.log('signInWithCode() result:', result)
     } catch (error) {
       console.error('signInWithCode() error:', error)
     }
+  }
+
+  const testFetchCurrentSession = async (tokenOverride?: string) => {
+    const startedAt = performance.now()
+    let token = tokenOverride || accessToken
+
+    try {
+      if (!token) {
+        token = await getToken()
+        setAccessToken(token)
+        const decoded = decodeToken(token)
+        setTokenExpiry(decoded?.exp ?? null)
+      }
+
+      const pdsUrl = getCurrentPdsUrl()
+      const response = await fetch(`${pdsUrl}/auth/session`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const data = await response.json().catch(() => null)
+      const duration = performance.now() - startedAt
+
+      setSessionProbe({
+        timestamp: Date.now(),
+        url: `${pdsUrl}/auth/session`,
+        status: response.status,
+        ok: response.ok,
+        data,
+      })
+
+      addLog(
+        response.ok ? 'operation' : 'error',
+        'GET /auth/session',
+        `status ${response.status}`,
+        duration,
+      )
+    } catch (error) {
+      const duration = performance.now() - startedAt
+      const message = error instanceof Error ? error.message : String(error)
+
+      setSessionProbe({
+        timestamp: Date.now(),
+        url: `${getCurrentPdsUrl()}/auth/session`,
+        status: 0,
+        ok: false,
+        error: message,
+      })
+      addLog('error', 'GET /auth/session failed', message, duration)
+    }
+  }
+
+  const triggerVisibilityReconcile = () => {
+    addLog(
+      'status',
+      'Dispatch visibilitychange',
+      `visibilityState=${document.visibilityState}`,
+    )
+    document.dispatchEvent(new Event('visibilitychange'))
+  }
+
+  const triggerOnlineReconcile = () => {
+    setIsOffline(false)
+    addLog('network', 'Dispatch online event')
+    window.dispatchEvent(new Event('online'))
   }
 
   const testResolveDid = async () => {
@@ -455,14 +606,7 @@ function App() {
 
   // Decode JWT token for display
   const decodeToken = (token: string) => {
-    try {
-      const parts = token.split('.')
-      if (parts.length !== 3) return null
-      const payload = JSON.parse(atob(parts[1]))
-      return payload
-    } catch {
-      return null
-    }
+    return decodeJwtPayload(token)
   }
 
   // Format unix timestamp to readable date
@@ -477,6 +621,13 @@ function App() {
     return ''
   }
 
+  const getAuthStatusClass = () => {
+    if (authStatus === 'authenticated') return 'success'
+    if (authStatus === 'bootstrapping' || authStatus === 'recovering') return 'pending'
+    if (authStatus === 'reauth_required' || authStatus === 'signed_out') return 'error'
+    return ''
+  }
+
   return (
     <div className="dashboard">
       {/* Header */}
@@ -486,6 +637,10 @@ function App() {
           <div className="status-badge">
             <span className={`status-dot ${getStatusClass()}`} />
             <span>{dbStatus}</span>
+          </div>
+          <div className="status-badge">
+            <span className={`status-dot ${getAuthStatusClass() === 'success' ? 'connected' : getAuthStatusClass() === 'pending' ? 'connecting' : getAuthStatusClass() === 'error' ? 'error' : ''}`} />
+            <span>{authStatus}</span>
           </div>
         </div>
         <div className="header-right">
@@ -614,7 +769,11 @@ function App() {
                 <div key={item.id} className={`list-item-wrap ${expandedItems.has(item.id) ? 'expanded' : ''}`}>
                   <div className="list-item" onClick={() => setExpandedItems(prev => {
                     const next = new Set(prev)
-                    next.has(item.id) ? next.delete(item.id) : next.add(item.id)
+                    if (next.has(item.id)) {
+                      next.delete(item.id)
+                    } else {
+                      next.add(item.id)
+                    }
                     return next
                   })}>
                     <div style={{ flex: 1 }}>
@@ -817,6 +976,18 @@ function App() {
                     {isSignedIn ? 'Yes' : 'No'}
                   </span>
                 </div>
+                <div className="status-item">
+                  <span className="status-label">authStatus</span>
+                  <span className={`status-value ${getAuthStatusClass()}`}>
+                    {authStatus}
+                  </span>
+                </div>
+                <div className="status-item">
+                  <span className="status-label">authErrorCode</span>
+                  <span className={`status-value ${authErrorCode ? 'error' : 'muted'}`}>
+                    {authErrorCode || '—'}
+                  </span>
+                </div>
               </div>
               {user && (
                 <div className="user-info" style={{ marginTop: 'var(--space-3)' }}>
@@ -845,6 +1016,49 @@ function App() {
                 <button onClick={testGetSignInUrl}>getSignInUrl()</button>
                 <button onClick={testGetToken}>getToken()</button>
               </div>
+            </div>
+          </div>
+
+          <div className="panel">
+            <div className="panel-header">
+              <span className="panel-title">Session & Recovery</span>
+            </div>
+            <div className="panel-body">
+              <div className="button-group" style={{ marginBottom: 'var(--space-2)' }}>
+                <button onClick={testForceRefreshToken}>force refresh</button>
+                <button onClick={() => void testFetchCurrentSession()}>GET /auth/session</button>
+                <button onClick={triggerVisibilityReconcile}>visibilitychange</button>
+                <button onClick={triggerOnlineReconcile}>dispatch online</button>
+              </div>
+              <div className="hint-text">
+                Use offline mode on the left, then trigger <code>online</code> or <code>visibilitychange</code> here to verify recovery behavior.
+              </div>
+              <div className="user-info" style={{ marginTop: 'var(--space-3)' }}>
+                <div className="user-info-row">
+                  <span className="user-info-label">pds</span>
+                  <span style={{ wordBreak: 'break-all' }}>{getCurrentPdsUrl()}</span>
+                </div>
+                <div className="user-info-row">
+                  <span className="user-info-label">probe</span>
+                  <span className={`status-value ${sessionProbe ? (sessionProbe.ok ? 'success' : 'error') : 'muted'}`}>
+                    {sessionProbe ? `${sessionProbe.status || 'ERR'} @ ${new Date(sessionProbe.timestamp).toLocaleTimeString()}` : 'not run'}
+                  </span>
+                </div>
+              </div>
+              {sessionProbe && (
+                <div className="session-probe">
+                  <div className="session-probe-meta">
+                    <span>{sessionProbe.url}</span>
+                  </div>
+                  {sessionProbe.error ? (
+                    <div className="session-probe-error">{sessionProbe.error}</div>
+                  ) : (
+                    <pre className="session-probe-json">
+                      {JSON.stringify(sessionProbe.data, null, 2)}
+                    </pre>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
@@ -1058,8 +1272,8 @@ function App() {
                 <input
                   type="text"
                   placeholder="state (optional)"
-                  value={authState}
-                  onChange={(e) => setAuthState(e.target.value)}
+                  value={authStateParam}
+                  onChange={(e) => setAuthStateParam(e.target.value)}
                 />
                 <button onClick={testSignInWithCode}>Execute</button>
               </div>

@@ -15,6 +15,7 @@ import type {
   AuthResult,
   GetTokenOptions,
   PdsEndpoints,
+  AuthStatus,
 } from './core/auth/AuthManager'
 
 import { log } from './config'
@@ -47,6 +48,7 @@ export type {
   AuthResult,
   GetTokenOptions,
   PdsEndpoints,
+  AuthStatus,
 } from './core/auth/AuthManager'
 export type { BasicContextType, BasicSchemaDevInfo } from './context'
 export { DBStatus, useBasic, BasicContext } from './context'
@@ -101,6 +103,8 @@ type AuthSnapshot = {
   isSignedIn: boolean
   hasToken: boolean
   isAuthReady: boolean
+  authStatus: AuthStatus
+  authErrorCode: string | null
   user: User | null
   did: string | null
   tokenScope: string | null
@@ -111,6 +115,8 @@ function snapshotAuth(mgr: AuthManager): AuthSnapshot {
     isSignedIn: mgr.isSignedIn,
     hasToken: !!mgr.token,
     isAuthReady: mgr.isAuthReady,
+    authStatus: mgr.authStatus,
+    authErrorCode: mgr.authErrorCode,
     user: mgr.user,
     did: mgr.did,
     tokenScope: mgr.tokenScope,
@@ -153,6 +159,8 @@ export function BasicProvider({
     isSignedIn: false,
     hasToken: false,
     isAuthReady: false,
+    authStatus: 'bootstrapping',
+    authErrorCode: null,
     user: null,
     did: null,
     tokenScope: null,
@@ -177,7 +185,7 @@ export function BasicProvider({
   const remoteDbRef = useRef<RemoteDB | null>(null)
   const [shouldConnect, setShouldConnect] = useState(false)
   const [dbStatus, setDbStatus] = useState<DBStatus>(DBStatus.OFFLINE)
-  const [isReady, setIsReady] = useState(false)
+  const [isDbReady, setIsDbReady] = useState(false)
   const [error, setError] = useState<ErrorObject | null>(null)
   const [schemaDevInfo, setSchemaDevInfo] = useState<BasicSchemaDevInfo | null>(
     null,
@@ -268,8 +276,15 @@ export function BasicProvider({
           setDbStatus(newStatus)
 
           if (newStatus === DBStatus.ERROR_WILL_RETRY) {
-            log('Sync entered ERROR_WILL_RETRY - proactively refreshing token')
-            authRef.current.getToken({ forceRefresh: true }).catch(() => {})
+            log(
+              'Sync entered ERROR_WILL_RETRY - reconciling auth session before retry',
+            )
+            authRef.current
+              .reconcileSession('sync retry', {
+                forceRefresh: true,
+                throttleMs: 0,
+              })
+              .catch(() => {})
           }
         })
 
@@ -279,7 +294,7 @@ export function BasicProvider({
           log('Sync is disabled')
         }
 
-        setIsReady(true)
+        setIsDbReady(true)
       }
     }
 
@@ -292,7 +307,7 @@ export function BasicProvider({
             message:
               'Remote mode requires a project_id. Provide it via schema.project_id or the project_id prop.',
           })
-          setIsReady(true)
+          setIsDbReady(true)
           return
         }
 
@@ -309,11 +324,18 @@ export function BasicProvider({
               log('403 Forbidden - user lacks required scope, not signing out')
               return
             }
-            log('Recoverable RemoteDB auth error - preserving session state')
+            authRef.current
+              .reconcileSession(`remote db ${error.errorType}`, {
+                forceRefresh: error.errorType !== 'network',
+                throttleMs: 0,
+              })
+              .catch((reconcileError) => {
+                log('RemoteDB auth recovery failed:', reconcileError)
+              })
           },
         })
         setDbStatus(DBStatus.ONLINE)
-        setIsReady(true)
+        setIsDbReady(true)
       }
     }
 
@@ -340,7 +362,7 @@ export function BasicProvider({
           title: 'Basic Schema is invalid!',
           message: errorMessage,
         })
-        setIsReady(true)
+        setIsDbReady(true)
         return null
       }
 
@@ -389,7 +411,7 @@ export function BasicProvider({
       if (dbMode === 'remote' && project_id) {
         initRemoteDb()
       } else {
-        setIsReady(true)
+        setIsDbReady(true)
       }
     }
   }, [])
@@ -399,6 +421,7 @@ export function BasicProvider({
       authState.hasToken &&
       syncRef.current &&
       authState.isSignedIn &&
+      authState.authStatus !== 'reauth_required' &&
       shouldConnect
     ) {
       log('connecting to db...')
@@ -412,8 +435,29 @@ export function BasicProvider({
           log('error connecting to db', e)
         })
     }
-  }, [authState.isSignedIn, authState.hasToken, shouldConnect])
+  }, [
+    authState.authStatus,
+    authState.isSignedIn,
+    authState.hasToken,
+    shouldConnect,
+  ])
 
+  useEffect(() => {
+    if (authState.authStatus !== 'reauth_required' || !syncRef.current) {
+      return
+    }
+
+    log('Auth requires reauthentication - disconnecting sync without deleting local DB')
+    setDbStatus(DBStatus.ERROR_TOKEN_EXPIRED)
+    syncRef.current
+      .disconnect({ ws_url: authConfig.ws_url })
+      .catch((disconnectError: unknown) => {
+        log('Error disconnecting sync after auth invalidation:', disconnectError)
+      })
+  }, [authConfig.ws_url, authState.authStatus])
+
+  // TODO: replace reload with proper sync DB teardown + re-init so
+  // sign-out → sign-in works without a full page reload.
   const handleSignOut = async () => {
     await authRef.current.signOut()
     if (syncRef.current) {
@@ -421,10 +465,12 @@ export function BasicProvider({
         await syncRef.current.close()
         await syncRef.current.delete({ disableAutoOpen: false })
         syncRef.current = null
-        window?.location?.reload()
       } catch (error) {
         console.error('Error during database cleanup:', error)
       }
+    }
+    if (typeof window !== 'undefined') {
+      window.location.reload()
     }
   }
 
@@ -472,6 +518,8 @@ export function BasicProvider({
   const contextValue = {
     isReady: authState.isAuthReady,
     isSignedIn: authState.isSignedIn,
+    authStatus: authState.authStatus,
+    authErrorCode: authState.authErrorCode,
     user: authState.user,
     did: authState.did,
     scope: authState.tokenScope,
@@ -512,7 +560,7 @@ export function BasicProvider({
           <BasicDevToolbar debug={debug} />
         </Suspense>
       )}
-      {isReady && children}
+      {isDbReady && authState.isAuthReady && children}
     </BasicContext.Provider>
   )
 }

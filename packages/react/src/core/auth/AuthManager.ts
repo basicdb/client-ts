@@ -11,6 +11,7 @@ const DEFINITIVE_TOKEN_ERRORS = new Set([
   'unauthorized_client',
 ])
 const USER_RECOVERY_RETRY_COOLDOWN_MS = 30_000
+const SESSION_RECONCILE_THROTTLE_MS = 5_000
 
 class DefinitiveAuthError extends Error {
   readonly code: string
@@ -67,6 +68,32 @@ export type User = {
   picture?: string
 }
 
+/**
+ * High-level auth lifecycle state.
+ *
+ * - `bootstrapping` — SDK is initializing; not yet determined if a session exists.
+ * - `authenticated` — User has a valid access token and active session.
+ * - `recovering`    — A session likely exists (refresh token / cached user) but
+ *                     the SDK hasn't confirmed it yet (e.g. offline, mid-refresh).
+ * - `reauth_required` — The session is definitively invalid (revoked, expired
+ *                     refresh token, etc.). The user must sign in again.
+ *                     NOTE: `isSignedIn` remains `true` in this state so the UI
+ *                     can display user info while prompting re-authentication.
+ *                     Use `authStatus === 'reauth_required'` to distinguish
+ *                     this from a healthy signed-in state.
+ * - `signed_out`    — No session. User is not authenticated.
+ *
+ * TODO: revisit naming and ergonomics — consider adding a `needsReauth` or
+ * `shouldPromptSignIn` convenience getter so consumers don't need to inspect
+ * the raw status to decide between "sign in" vs "sign out" UI.
+ */
+export type AuthStatus =
+  | 'bootstrapping'
+  | 'authenticated'
+  | 'recovering'
+  | 'reauth_required'
+  | 'signed_out'
+
 export type AuthResult = {
   success: boolean
   error?: string
@@ -99,6 +126,18 @@ type JwtClaims = {
   exp?: number
 }
 
+type CurrentSessionInfo = {
+  active: boolean
+  reauth_required?: boolean
+  session_id?: string | null
+  client_id?: string
+  scope?: string
+  account_did?: string
+  connection_status?: string
+  last_seen_at?: string | null
+  error?: string
+}
+
 /**
  * Framework-agnostic auth manager. Holds token state, handles OAuth flow,
  * token refresh (with mutex), and user info fetching.
@@ -112,6 +151,8 @@ export class AuthManager {
   user: User | null = null
   isSignedIn: boolean = false
   isAuthReady: boolean = false
+  authStatus: AuthStatus = 'bootstrapping'
+  authErrorCode: string | null = null
   did: string | null = null
   /** Space-separated scopes granted in the current access token */
   tokenScope: string | null = null
@@ -133,6 +174,8 @@ export class AuthManager {
     typeof navigator !== 'undefined' ? navigator.onLine : true
   private channel: BroadcastChannel | null = null
   private nextUserRecoveryAt: number = 0
+  private sessionCheckPromise: Promise<void> | null = null
+  private lastSessionCheckAt: number = 0
 
   constructor(
     config: AuthManagerConfig,
@@ -154,38 +197,27 @@ export class AuthManager {
       this.channel.onmessage = (event) => {
         if (event.data?.type === 'token_refreshed') {
           log('Received token refresh from another tab')
-          if (event.data.accessToken && this.token) {
-            this.token = {
-              ...this.token,
-              access_token: event.data.accessToken,
-            }
-          }
-          if (event.data.did) this.did = event.data.did
-          if (event.data.tokenScope) this.tokenScope = event.data.tokenScope
-          void this.syncRefreshTokenFromStorage()
-          this.notify()
+          void this.handleExternalTokenRefresh(event.data)
         }
         if (event.data?.type === 'signed_in') {
-          log('Received sign-in from another tab, reloading')
-          // The signing-in tab already stored refresh_token and user_info
-          // in localStorage. Reload so initialize() bootstraps the session.
+          log('Received sign-in from another tab, restoring session')
+          void this.restoreStoredSession('cross-tab sign-in')
+        }
+        if (event.data?.type === 'signed_out') {
+          log('Received sign-out from another tab')
+          this.resetAuthState('signed_out')
+          this.notify()
+          // TODO: replace reload with proper cross-tab sync teardown so
+          // other tabs can clean up without a full page reload.
           if (typeof window !== 'undefined') {
             window.location.reload()
           }
         }
-        if (event.data?.type === 'signed_out') {
-          log('Received sign-out from another tab, reloading')
-          this.user = null
-          this.isSignedIn = false
-          this.token = null
-          this.did = null
-          this.tokenScope = null
-          this.notify()
-          // Storage and IndexedDB are already cleaned by the tab that initiated
-          // sign-out. Reload so this tab picks up the clean slate.
-          if (typeof window !== 'undefined') {
-            window.location.reload()
-          }
+        if (event.data?.type === 'session_invalidated') {
+          log('Received session invalidation from another tab')
+          void this.markReauthRequired(event.data.code || 'invalid_grant', {
+            broadcast: false,
+          })
         }
       }
     } catch {
@@ -210,6 +242,10 @@ export class AuthManager {
     this.channel?.postMessage({ type: 'signed_out' })
   }
 
+  private broadcastSessionInvalidated(code: string): void {
+    this.channel?.postMessage({ type: 'session_invalidated', code })
+  }
+
   // ------------------------------------------------------------------
   // Public API
   // ------------------------------------------------------------------
@@ -219,6 +255,7 @@ export class AuthManager {
    * from refresh token, or load cached user for offline mode.
    */
   async initialize(): Promise<void> {
+    this.updateAuthStatus('bootstrapping')
     await this.storage.set(
       STORAGE_KEYS.DEBUG,
       this.config.debug ? 'true' : 'false',
@@ -237,7 +274,7 @@ export class AuthManager {
       if (params.has('code')) {
         const code = params.get('code')
         if (!code) {
-          this.isAuthReady = true
+          this.updateAuthStatus('signed_out')
           this.notify()
           return
         }
@@ -246,7 +283,7 @@ export class AuthManager {
         const urlState = params.get('state')
         if (!state || state !== urlState) {
           log('error: auth state does not match')
-          this.isAuthReady = true
+          this.updateAuthStatus('signed_out')
           this.notify()
           await this.storage.remove(STORAGE_KEYS.AUTH_STATE)
           cleanOAuthParamsFromUrl()
@@ -260,28 +297,16 @@ export class AuthManager {
         this.exchangeToken(code, false).catch((error) => {
           log('Error fetching token:', error)
           this.freshSignIn = false
-          this.isAuthReady = true
-          this.notify()
+          void this.restoreCachedUser({
+            hasRecoverableSession: !this.isDefinitiveAuthFailure(error),
+          })
         })
       } else {
-        const refreshToken = await this.getRefreshToken()
-        if (refreshToken) {
-          log(
-            'Found refresh token in storage, attempting to refresh access token',
-          )
-          this.exchangeToken(refreshToken, true).catch(async (error) => {
-            log('Error fetching refresh token:', error)
-            await this.restoreCachedUser({
-              hasRecoverableSession: !this.isDefinitiveAuthFailure(error),
-            })
-          })
-        } else {
-          await this.restoreCachedUser({ hasRecoverableSession: false })
-        }
+        await this.restoreStoredSession('initialize')
       }
     } catch (e) {
       log('error getting token', e)
-      this.isAuthReady = true
+      this.updateAuthStatus('signed_out')
       this.notify()
     }
   }
@@ -539,7 +564,7 @@ export class AuthManager {
    */
   async signOut(): Promise<void> {
     log('signing out!')
-    this.resetAuthState()
+    this.resetAuthState('signed_out')
 
     await this.storage.remove(STORAGE_KEYS.AUTH_STATE)
     await this.storage.remove(STORAGE_KEYS.LAST_CONNECT_REPORT)
@@ -547,6 +572,68 @@ export class AuthManager {
 
     this.broadcastSignOut()
     this.notify()
+  }
+
+  async reconcileSession(
+    reason: string = 'manual',
+    options?: { forceRefresh?: boolean; throttleMs?: number },
+  ): Promise<void> {
+    if (this.authStatus === 'signed_out' || this.authStatus === 'reauth_required') {
+      return
+    }
+
+    if (!this.isOnline) {
+      this.updateAuthStatus('recovering', this.authErrorCode)
+      this.notify()
+      return
+    }
+
+    const throttleMs = options?.throttleMs ?? SESSION_RECONCILE_THROTTLE_MS
+    const forceRefresh = options?.forceRefresh === true
+    const now = Date.now()
+
+    if (this.sessionCheckPromise) {
+      return this.sessionCheckPromise
+    }
+
+    if (!forceRefresh && now - this.lastSessionCheckAt < throttleMs) {
+      return
+    }
+
+    this.lastSessionCheckAt = now
+
+    let sessionCheck: Promise<void> | null = null
+    sessionCheck = (async () => {
+      try {
+        const accessToken = await this.getToken(
+          forceRefresh ? { forceRefresh: true } : undefined,
+        )
+        const currentSession = await this.fetchCurrentSession(accessToken)
+        if (currentSession?.active) {
+          this.updateAuthStatus('authenticated')
+          this.notify()
+          if (!this.user) {
+            await this.recoverMissingUserProfile(reason, accessToken)
+          }
+        }
+      } catch (error) {
+        log(`Session reconciliation failed on ${reason}:`, error)
+        if (this.isDefinitiveAuthFailure(error)) {
+          return
+        }
+        if (this.isNetworkError(error)) {
+          this.updateAuthStatus('recovering', this.authErrorCode)
+          this.notify()
+        }
+      } finally {
+        if (this.sessionCheckPromise === sessionCheck) {
+          this.sessionCheckPromise = null
+        }
+      }
+    })()
+
+    this.sessionCheckPromise = sessionCheck
+    return sessionCheck
   }
 
   hasScope(scope: string): boolean {
@@ -589,10 +676,15 @@ export class AuthManager {
           })
         }
       }
-      if (this.isSignedIn && !this.user) {
-        this.recoverMissingUserProfile('online event').catch((error) => {
-          log('User profile recovery on online failed:', error)
+      if (this.isSignedIn) {
+        this.reconcileSession('online event', {
+          forceRefresh: true,
+          throttleMs: 0,
+        }).catch((error) => {
+          log('Session reconciliation on online failed:', error)
         })
+      } else if (this.user) {
+        await this.restoreStoredSession('online restore')
       }
     }
 
@@ -603,19 +695,12 @@ export class AuthManager {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && this.isSignedIn) {
-        log('App became visible - checking token freshness')
-        this.getToken()
-          .then((accessToken) => {
-            if (!this.user) {
-              return this.recoverMissingUserProfile(
-                'visibility resume',
-                accessToken,
-              )
-            }
-          })
-          .catch((err) => {
-            log('Token refresh on visibility resume failed:', err)
-          })
+        log('App became visible - reconciling auth session')
+        this.reconcileSession('visibility resume', {
+          forceRefresh: true,
+        }).catch((err) => {
+          log('Session reconciliation on visibility resume failed:', err)
+        })
       }
     }
 
@@ -699,7 +784,7 @@ export class AuthManager {
    */
   private async processNewToken(): Promise<void> {
     if (!this.token) {
-      this.isAuthReady = true
+      this.updateAuthStatus('signed_out')
       this.notify()
       return
     }
@@ -707,14 +792,13 @@ export class AuthManager {
     try {
       const decoded = jwtDecode<JwtClaims>(this.token.access_token)
       this.applyTokenClaims(decoded)
-      this.isSignedIn = true
-      this.isAuthReady = true
+      this.updateAuthStatus('authenticated')
       this.notify()
       this.broadcastSessionUpdate()
       await this.fetchUser(this.token.access_token)
     } catch (error) {
       log('Error processing token:', error)
-      this.isAuthReady = true
+      this.updateAuthStatus('recovering')
       this.notify()
     }
   }
@@ -723,22 +807,19 @@ export class AuthManager {
     hasRecoverableSession: boolean
   }): Promise<void> {
     const cached = await this.storage.get(STORAGE_KEYS.USER_INFO)
-    if (cached) {
+    if (cached && options?.hasRecoverableSession) {
       try {
         this.user = JSON.parse(cached)
-        this.isSignedIn = options?.hasRecoverableSession ?? false
-        log(
-          options?.hasRecoverableSession
-            ? 'Restored cached user info for recoverable session'
-            : 'Loaded cached user info without an active session',
-        )
+        log('Restored cached user info for recoverable session')
       } catch {
         /* corrupted cache, ignore */
       }
     } else {
-      this.isSignedIn = options?.hasRecoverableSession ?? false
+      this.user = null
     }
-    this.isAuthReady = true
+    this.updateAuthStatus(
+      options?.hasRecoverableSession ? 'recovering' : 'signed_out',
+    )
     this.notify()
   }
 
@@ -773,8 +854,9 @@ export class AuthManager {
       log('Cached user info in storage')
 
       this.user = user
-      this.isSignedIn = true
-      this.isAuthReady = true
+      if (this.authStatus !== 'reauth_required') {
+        this.updateAuthStatus('authenticated')
+      }
       this.nextUserRecoveryAt = 0
       this.notify()
     } catch (error) {
@@ -928,9 +1010,7 @@ export class AuthManager {
           // Transient server errors (500, 503, etc.) should NOT wipe
           // the refresh token — the user can retry later.
           if (this.isDefinitiveTokenErrorCode(token.error)) {
-            await this.invalidateSession(
-              `definitive token rejection (${token.error})`,
-            )
+            await this.markReauthRequired(token.error)
             throw new DefinitiveAuthError(token.error)
           }
           throw new Error(`Token refresh failed: ${token.error}`)
@@ -998,14 +1078,15 @@ export class AuthManager {
     return tokenPromise
   }
 
-  private resetAuthState(): void {
-    this.user = null
-    this.isSignedIn = false
+  private resetAuthState(status: AuthStatus = 'signed_out'): void {
+    this.user = status === 'reauth_required' ? this.user : null
     this.token = null
-    this.did = null
+    if (status !== 'reauth_required') {
+      this.did = null
+    }
     this.tokenScope = null
     this.nextUserRecoveryAt = 0
-    this.isAuthReady = true
+    this.updateAuthStatus(status)
   }
 
   private async clearStoredAuth(): Promise<void> {
@@ -1108,8 +1189,9 @@ export class AuthManager {
       this.nextUserRecoveryAt = 0
     }
 
-    this.isSignedIn = !!this.token
-    this.isAuthReady = true
+    if (this.authStatus === 'bootstrapping') {
+      this.updateAuthStatus(this.token ? 'authenticated' : 'recovering')
+    }
     this.notify()
   }
 
@@ -1145,10 +1227,145 @@ export class AuthManager {
     return error instanceof DefinitiveAuthError
   }
 
-  private async invalidateSession(reason: string): Promise<void> {
-    log('Invalidating auth session:', reason)
-    await this.clearStoredAuth()
-    this.resetAuthState()
+  /**
+   * Centralised auth status setter. Derives `isSignedIn` and `isAuthReady`
+   * from the status so they stay consistent.
+   *
+   * `isSignedIn` is intentionally `true` during `reauth_required` so the
+   * UI layer can still display user info while prompting re-authentication.
+   * Consumers should check `authStatus` (or a future convenience getter)
+   * when they need to distinguish "healthy session" from "needs re-auth".
+   */
+  private updateAuthStatus(
+    status: AuthStatus,
+    errorCode: string | null = null,
+  ): void {
+    this.authStatus = status
+    this.authErrorCode = errorCode
+    this.isSignedIn =
+      status === 'authenticated' ||
+      status === 'recovering' ||
+      status === 'reauth_required'
+    this.isAuthReady = status !== 'bootstrapping'
+  }
+
+  private async clearStoredSessionTokens(): Promise<void> {
+    await this.storage.remove(STORAGE_KEYS.REFRESH_TOKEN)
+    await this.storage.remove(STORAGE_KEYS.REDIRECT_URI)
+    await this.storage.remove(STORAGE_KEYS.CODE_VERIFIER)
+  }
+
+  private async restoreStoredSession(reason: string): Promise<void> {
+    const refreshToken = await this.getRefreshToken()
+    if (!refreshToken) {
+      log(`No stored refresh token available during ${reason}`)
+      await this.restoreCachedUser({ hasRecoverableSession: false })
+      return
+    }
+
+    log(`Restoring stored session during ${reason}`)
+    await this.restoreCachedUser({ hasRecoverableSession: true })
+
+    if (!this.isOnline) {
+      return
+    }
+
+    this.exchangeToken(refreshToken, true).catch(async (error) => {
+      log(`Stored session refresh failed during ${reason}:`, error)
+      if (this.isDefinitiveAuthFailure(error)) {
+        return
+      }
+      await this.restoreCachedUser({ hasRecoverableSession: true })
+    })
+  }
+
+  private async handleExternalTokenRefresh(data: {
+    accessToken?: string
+    did?: string
+    tokenScope?: string
+  }): Promise<void> {
+    await this.syncRefreshTokenFromStorage()
+    const refreshToken = await this.getRefreshToken()
+    if (data.accessToken && refreshToken) {
+      try {
+        const decoded = jwtDecode<JwtClaims>(data.accessToken)
+        const expiresIn =
+          decoded.exp != null
+            ? Math.max(0, decoded.exp - Math.floor(Date.now() / 1000))
+            : 0
+        this.token = {
+          access_token: data.accessToken,
+          token_type: 'Bearer',
+          expires_in: expiresIn,
+          refresh_token: refreshToken,
+        }
+        this.applyTokenClaims(decoded)
+      } catch (error) {
+        log('Failed to decode token refreshed by another tab:', error)
+        this.token = {
+          access_token: data.accessToken,
+          token_type: 'Bearer',
+          expires_in: 0,
+          refresh_token: refreshToken,
+        }
+      }
+      if (this.authStatus !== 'reauth_required') {
+        this.updateAuthStatus('authenticated')
+      }
+    } else if (refreshToken) {
+      await this.restoreCachedUser({ hasRecoverableSession: true })
+    }
+
+    if (data.did) this.did = data.did
+    if (data.tokenScope) this.tokenScope = data.tokenScope
+    this.notify()
+  }
+
+  private async fetchCurrentSession(
+    accessToken: string,
+  ): Promise<CurrentSessionInfo | null> {
+    const endpoints = await this.getActivePdsEndpoints()
+    const response = await fetch(`${endpoints.pds_url}/auth/session`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    const data = (await response.json().catch(() => ({}))) as CurrentSessionInfo
+
+    if (response.status === 401 && data.reauth_required) {
+      await this.markReauthRequired(data.error || 'invalid_session')
+      throw new DefinitiveAuthError(data.error || 'invalid_session')
+    }
+
+    if (!response.ok) {
+      throw new Error(`Failed to reconcile session: ${response.status}`)
+    }
+
+    return data
+  }
+
+  private async markReauthRequired(
+    code: string,
+    options?: { broadcast?: boolean },
+  ): Promise<void> {
+    log('Marking auth session as requiring reauthentication:', code)
+    await this.clearStoredSessionTokens()
+    if (!this.user) {
+      const cached = await this.storage.get(STORAGE_KEYS.USER_INFO)
+      if (cached) {
+        try {
+          this.user = JSON.parse(cached)
+        } catch {
+          /* ignore corrupted cache */
+        }
+      }
+    }
+    this.token = null
+    this.tokenScope = null
+    this.nextUserRecoveryAt = 0
+    this.updateAuthStatus('reauth_required', code)
+    if (options?.broadcast !== false) {
+      this.broadcastSessionInvalidated(code)
+    }
     this.notify()
   }
 }

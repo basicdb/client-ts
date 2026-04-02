@@ -274,6 +274,10 @@
   color: var(--accent-warning);
 }
 
+.status-value.muted {
+  color: var(--text-muted);
+}
+
 /* User Info */
 .user-info {
   padding: var(--space-3);
@@ -301,6 +305,17 @@
   display: flex;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.hint-text {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.hint-text code {
+  font-family: var(--font-mono);
+  font-size: 10px;
 }
 
 /* Empty State */
@@ -715,4 +730,35 @@ input[type="number"].number-input {
   margin: 0;
   overflow: auto;
   max-height: 150px;
+}
+
+.session-probe {
+  margin-top: var(--space-3);
+  padding: var(--space-2);
+  background: var(--bg-base);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+}
+
+.session-probe-meta {
+  margin-bottom: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.session-probe-json {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-primary);
+  overflow: auto;
+  max-height: 220px;
+}
+
+.session-probe-error {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-error);
 }

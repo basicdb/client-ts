@@ -38,6 +38,7 @@ export const syncProtocol = function () {
       var requestId = 0;
       var acceptCallbacks = {};
       var refreshTimer = null;
+      var pendingTokenUpdate = null;
 
       // Connect the WebSocket to given url:
       log("Connecting to", url)
@@ -81,6 +82,13 @@ export const syncProtocol = function () {
         }
       }
 
+      function sendTokenUpdate(token) {
+        if (ws.readyState !== WebSocket.OPEN) return false;
+        pendingTokenUpdate = token;
+        ws.send(JSON.stringify({ type: "tokenUpdate", authToken: token }));
+        return true;
+      }
+
       // Resolve the getToken function from the module-level registry.
       // It's stored there (not in options) because dexie-syncable serializes
       // options into IndexedDB, and functions can't survive structured clone.
@@ -103,10 +111,8 @@ export const syncProtocol = function () {
         refreshTimer = setTimeout(async function () {
           try {
             var newToken = await resolveGetToken()({ forceRefresh: true });
-            if (ws.readyState === WebSocket.OPEN) {
+            if (sendTokenUpdate(newToken)) {
               log("Sending tokenUpdate on existing WebSocket");
-              ws.send(JSON.stringify({ type: "tokenUpdate", authToken: newToken }));
-              scheduleTokenRefresh(newToken);
             }
           } catch (err) {
             log("Proactive token refresh failed (non-fatal):", err);
@@ -145,10 +151,7 @@ export const syncProtocol = function () {
         if (document.visibilityState === 'visible' && ws.readyState === WebSocket.OPEN) {
           log("Page became visible - refreshing token for WebSocket");
           resolveGetToken()({ forceRefresh: true }).then(function(newToken) {
-            if (ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: "tokenUpdate", authToken: newToken }));
-              scheduleTokenRefresh(newToken);
-            }
+            sendTokenUpdate(newToken);
           }).catch(function(err) {
             log("Token refresh on visibility resume failed:", err);
           });
@@ -245,6 +248,19 @@ export const syncProtocol = function () {
                 },
               });
               isFirstRound = false;
+            }
+          } else if (requestFromServer.type == "tokenUpdateAck") {
+            if (requestFromServer.ok) {
+              scheduleTokenRefresh(requestFromServer.authToken || pendingTokenUpdate);
+              pendingTokenUpdate = null;
+            } else {
+              log("tokenUpdate rejected by server:", requestFromServer.code || requestFromServer.message);
+              pendingTokenUpdate = null;
+              ws.close(4001, requestFromServer.code || "token_update_failed");
+              onError(
+                requestFromServer.message || "Authentication refresh failed",
+                RECONNECT_DELAY,
+              );
             }
           } else if (requestFromServer.type == "ack") {
             var requestId = requestFromServer.requestId;

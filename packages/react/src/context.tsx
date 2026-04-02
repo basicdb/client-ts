@@ -1,6 +1,11 @@
 import { createContext, useContext } from 'react'
 import type { BasicDB } from './core/db'
-import type { User, AuthResult, GetTokenOptions } from './core/auth/AuthManager'
+import type {
+    User,
+    AuthResult,
+    GetTokenOptions,
+    AuthStatus,
+} from './core/auth/AuthManager'
 import type { DBMode } from './core/db'
 
 export enum DBStatus {
@@ -10,7 +15,16 @@ export enum DBStatus {
     ONLINE = 'ONLINE',
     SYNCING = 'SYNCING',
     ERROR = 'ERROR',
+    /** Sync-layer error with automatic retry (maps from dexie-syncable status 4). */
     ERROR_WILL_RETRY = 'ERROR_WILL_RETRY',
+    /**
+     * Auth-driven status: set by the provider when `authStatus` transitions to
+     * `reauth_required`, causing sync to disconnect. Unlike the other statuses
+     * this is NOT mapped from a dexie-syncable status code — it is set
+     * programmatically by `BasicProvider` to signal that the token is
+     * definitively invalid and the user must re-authenticate before sync can
+     * resume.
+     */
     ERROR_TOKEN_EXPIRED = 'ERROR_TOKEN_EXPIRED',
 }
 
@@ -30,6 +44,8 @@ export type BasicSchemaDevInfo = {
 export type BasicContextType = {
     isReady: boolean
     isSignedIn: boolean
+    authStatus: AuthStatus
+    authErrorCode: string | null
     user: User | null
     did: string | null
     scope: string | null
@@ -69,6 +85,8 @@ const noDb: BasicDB = {
 export const BasicContext = createContext<BasicContextType>({
     isReady: false,
     isSignedIn: false,
+    authStatus: 'bootstrapping',
+    authErrorCode: null,
     user: null,
     did: null,
     scope: null,
