@@ -183,6 +183,7 @@ export function BasicProvider({
 
   const syncRef = useRef<BasicSync | null>(null)
   const remoteDbRef = useRef<RemoteDB | null>(null)
+  const connectingRef = useRef(false)
   const [shouldConnect, setShouldConnect] = useState(false)
   const [dbStatus, setDbStatus] = useState<DBStatus>(DBStatus.OFFLINE)
   const [isDbReady, setIsDbReady] = useState(false)
@@ -422,16 +423,22 @@ export function BasicProvider({
       syncRef.current &&
       authState.isSignedIn &&
       authState.authStatus !== 'reauth_required' &&
-      shouldConnect
+      shouldConnect &&
+      !connectingRef.current
     ) {
       log('connecting to db...')
+      connectingRef.current = true
 
       syncRef.current
         ?.connect({
           getToken: (opts?: GetTokenOptions) => authRef.current.getToken(opts),
           ws_url: authConfig.ws_url,
         })
+        .then(() => {
+          connectingRef.current = false
+        })
         .catch((e: any) => {
+          connectingRef.current = false
           log('error connecting to db', e)
         })
     }

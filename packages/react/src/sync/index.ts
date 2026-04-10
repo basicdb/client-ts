@@ -97,31 +97,20 @@ export class BasicSync extends Dexie {
       log('Local sync nodes:', localSyncNodes);
 
       if (localSyncNodes.length > 1) {
-
-        
         const largestNodeId = Math.max(...localSyncNodes.map(node => node.id));
-        // Check if the largest node is already the master
         const largestNode = localSyncNodes.find(node => node.id === largestNodeId);
         if (largestNode && largestNode.isMaster === 1) {
           log('Largest node is already the master. No changes needed.');
-          return; // Exit the function early as no changes are needed
+          return;
         }
-
 
         log('Largest node id:', largestNodeId);
-        log('HEISENBUG: More than one local sync node found.')
+        log('Multiple local sync nodes found, fixing master assignment.');
 
         for (const node of localSyncNodes) {
-          log(`Local sync node keys:`, node.id, node.isMaster);
-          await this.table('_syncNodes').update(node.id, { isMaster: node.id === largestNodeId ? 1 : 0 });
-
-          log(`HEISENBUG: Setting ${node.id} to ${node.id === largestNodeId ? 'master' : '0'}`);
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        if (typeof window !== 'undefined') {
-          window.location.reload();
+          await this.table('_syncNodes').update(node.id, {
+            isMaster: node.id === largestNodeId ? 1 : 0,
+          });
         }
       }
 
